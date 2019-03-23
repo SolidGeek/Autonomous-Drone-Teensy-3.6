@@ -1,2 +1,2 @@
 # Autonomous Drone with ESP32
-This project is the control system for a package delivery drone made using ESP32 as the main microcontroller.
+The control system for a package delivery drone made using a Teensy 3.6 as the main microcontroller.
