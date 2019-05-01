@@ -28,12 +28,13 @@ public:
 
 	void motorMixing( int16_t &s1, int16_t &s2, int16_t &s3, int16_t &s4 ); 
 
-private:
-  
   Controller Yaw;
   Controller Roll;
   Controller Pitch; 
 
+private:
+
+  // Not need to be public, as they only use a p-controller with a scale of 1
   Controller RollSpeed;
   Controller PitchSpeed; 
 

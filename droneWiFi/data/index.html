@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+	<title>uStepper Application</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" type="text/css" href="bootstrap.min.css">
+	<link rel="stylesheet" type="text/css" href="style.css">
+
+	<script type="text/javascript" src="smoothie.min.js"></script>
+
+</head>
+<body>
+	<header>
+		<h1>Drone Controlpanel</h1>
+		<span id="status">Status</span>
+	</header>
+
+	<div class="container">
+
+		<div class="row mb-3">
+
+			<div class="col-sm-9">
+				<canvas id="angleChart" style="width:100%; height:200px"></canvas>
+			</div>
+
+
+			<div class="col-sm-3">
+
+				<h4 class="mb-3">Angles</h4>
+
+				<div class="input-group mb-3">
+					<div class="input-group-prepend">
+						<span class="input-group-text">Roll</span>
+					</div>
+					<input class="form-control" style="color:#ec1a1a" id="roll_value" type="number" disabled="true" value="0">
+				</div>
+				
+				<div class="input-group mb-3">
+					<div class="input-group-prepend">
+						<span class="input-group-text">Pitch</span>
+					</div>
+					<input class="form-control" style="color: #01799e" id="pitch_value" type="number" disabled="true" value="0">
+				</div>
+
+				<div class="input-group mb-3">
+					<div class="input-group-prepend">
+						<span class="input-group-text">Yaw</span>
+					</div>
+					<input class="form-control" style="color: #0e9a27" id="yaw_value" type="number" disabled="true" value="0">
+				</div>
+				
+
+			</div>
+
+			
+			
+			
+
+		</div>
+
+		<div class="row">
+
+			<div class="col-sm-6">
+				<div class="card mb-3">
+					<div class="card-header">
+						Log
+					</div>
+					<textarea id="log" class="form-control" rows="5"></textarea>
+				</div>
+			</div>
+
+			<div class="col-sm-6">
+
+				<div class="card mb-3">
+					<div class="card-header">
+						Controllers
+					</div>
+					
+					<div class="card-body">
+				
+						<table class="table table-sm table-borderless">
+							<thead class="text-center">
+								<tr>
+									<th></th>
+									<th>P</th>
+									<th>I</th>
+									<th>D</th>
+									<th></th>
+								</tr>
+							</thead>
+
+							<tbody>
+								<tr>
+									<td>Roll</td>
+									<td><input type="number" name="roll_p" class="form-control form-control-sm" value="0"></td>
+									<td><input type="number" name="roll_i" class="form-control form-control-sm" value="0"></td>
+									<td><input type="number" name="roll_d" class="form-control form-control-sm" value="0"></td>
+									<td><input type="submit" id="send_roll" value="Send"></td>
+								</tr>
+
+								<tr>
+									<td>Pitch</td>
+									<td><input type="number" name="pitch_p" class="form-control form-control-sm" value="0"></td>
+									<td><input type="number" name="pitch_i" class="form-control form-control-sm" value="0"></td>
+									<td><input type="number" name="pitch_d" class="form-control form-control-sm" value="0"></td>
+									<td><input type="submit" id="send_pitch" value="Send"></td>
+								</tr>
+
+								<tr>
+									<td>Yaw</td>
+									<td><input type="number" name="yaw_p" class="form-control form-control-sm" value="0"></td>
+									<td><input type="number" name="yaw_i" class="form-control form-control-sm" value="0"></td>
+									<td><input type="number" name="yaw_d" class="form-control form-control-sm" value="0"></td>
+									<td><input type="submit" id="send_yaw" value="Send"></td>
+								</tr>
+
+
+							</tbody>
+
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		
+
+	</div>
+
+
+	<script type="text/javascript" src="script.js"></script>
+
+</body>
+</html>
