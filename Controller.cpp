@@ -27,16 +27,20 @@ void Controller::run(float setpoint, float input ){
     // Calculate the slope with the data from the current and last cycle
     derivative = (error - lastError);
 
-    // Prevent the integral cumulation from becoming overwhelmingly huge
-    if(integral > maxIntegral) integral = maxIntegral;
-    if(integral < -maxIntegral) integral = -maxIntegral;
-
+    // Prevent the integral cumulation from becoming overwhelmingly huge if maxIntegral isset
+    if (maxIntegral != 0.0){
+      if(integral > maxIntegral) integral = maxIntegral;
+      if(integral < -maxIntegral) integral = -maxIntegral;
+    }
+    
     // Calculate the controller output based on the data and PID gains
     output = (error * Kp) + (integral * Ki) + (derivative * Kd);
 
-    if(output > maxOutput) output = maxOutput;
-    if(output < -maxOutput) output = -maxOutput;
-
+    if( maxOutput != 0.0 ){
+      if(output > maxOutput) output = maxOutput;
+      if(output < -maxOutput) output = -maxOutput;
+    }
+    
     lastError = error;
 }
 

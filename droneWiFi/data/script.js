@@ -7,9 +7,14 @@ var logElement 	= document.getElementById("log");
 var sendRoll 	= document.getElementById("send_roll");
 var sendPitch 	= document.getElementById("send_pitch");
 var sendYaw 	= document.getElementById("send_yaw");
+var emergency 	= document.getElementById("emergency");
+var save 		= document.getElementById("save");
+
+
+var configRead = false;
 
 // Min interval in ms between each command 
-var wsInterval = 3000;
+var wsInterval = 500;
 
 
 window.onload = function() {
@@ -21,9 +26,15 @@ window.onload = function() {
 
 		if( websocket.readyState != 1 ){
 			initWebSocket();
+		}else{
+
+			if( configRead == false ){
+				sendCommand( "CONFIG" ); 
+			}
+			
 		}
 
-	}, 3000)
+	}, 1500);
 }
 
 /* Keep the websocket connection alive 
@@ -31,11 +42,7 @@ var websocketInterval = function() {
 
 	if(websocket.readyState == 1){
 
-		sendCommand( "ROLL", [
-			{name: "P", value: 20.0},
-			{name: "I", value: 8.0},
-			{name: "D", value: 0.0},
-		] );
+		sendCommand( "ALIVE" );
 
 	}
 
@@ -80,7 +87,7 @@ function sendCommand( command, param = [] ){
 
 	if(websocket.readyState == 1){
 		console.log( gcode );
-		websocket.send( gcode );
+		websocket.send( gcode + " " );
 	}
 }
 
@@ -99,30 +106,76 @@ function onWsMessage(event) {
 
 	var data = event.data;
 
-	if( data.includes("ANGLE") ){
+	if( data.includes("POS") ){
 
-		var angles = [];
+		console.log( data );
+
+		var tlm = [];
 
 		// Read data about position and update current positions
 		var items = data.split(" ");
 		items.shift(); // Remove "ANGLE" from array
 
 		for (var i in items) {
-	    	angles[i] = parseFloat( items[i].substring(1, items[i].length) );
+	    	tlm[i] = parseFloat( items[i].substring(1, items[i].length) );
 		}
 
-		roll.append(Date.now(), angles[2]);
-		pitch.append(Date.now(), angles[1]);
-		// yaw.append(Date.now(), angles[0]);
+		roll.append(Date.now(), tlm[2]);
+		pitch.append(Date.now(), tlm[1]);
+		// yaw.append(Date.now(), tlm[0]);
 
-		document.getElementById('roll_value').value = angles[2];
-		document.getElementById('pitch_value').value = angles[1];
-		document.getElementById('yaw_value').value = angles[0];
+		document.getElementById('roll_value').value = tlm[2];
+		document.getElementById('pitch_value').value = tlm[1];
+		document.getElementById('yaw_value').value = tlm[0];
+		document.getElementById('alt_value').value = tlm[3];
 	}
 
 	else if( data.includes("SPEED") ){
 
-		console.log( data );
+		var speeds = [];
+
+		// Read data about position and update current positions
+		var items = data.split(" ");
+
+		items.shift(); // Remove "ANGLE" from array
+
+		for (var i in items) {
+	    	speeds[i] = parseFloat( items[i].substring(1, items[i].length) );
+		}
+
+		document.getElementsByName('motor1')[0].value = speeds[0];
+		document.getElementsByName('motor2')[0].value = speeds[1];
+		document.getElementsByName('motor3')[0].value = speeds[2];
+		document.getElementsByName('motor4')[0].value = speeds[3];
+
+	}
+
+	else if( data.includes("CONFIG") ) {
+
+		var settings = [];
+
+		// Read data about position and update current positions
+		var items = data.split(" ");
+
+		items.shift(); // Remove "ANGLE" from array
+
+		for (var i in items) {
+	    	settings[i] = parseFloat( items[i].substring(1, items[i].length) );
+		}
+
+		document.getElementsByName('roll_p')[0].value = settings[0];
+		document.getElementsByName('roll_i')[0].value = settings[1];
+		document.getElementsByName('roll_d')[0].value = settings[2];
+		
+		document.getElementsByName('pitch_p')[0].value = settings[3];
+		document.getElementsByName('pitch_i')[0].value = settings[4];
+		document.getElementsByName('pitch_d')[0].value = settings[5];
+
+		document.getElementsByName('yaw_p')[0].value = settings[6];
+		document.getElementsByName('yaw_i')[0].value = settings[7];
+		document.getElementsByName('yaw_d')[0].value = settings[8];
+
+		configRead = true;
 
 	}
 }
@@ -227,4 +280,16 @@ sendPitch.onclick = function()
 		{name: "I", value: ki},
 		{name: "D", value: kd},
 	] );
+};
+
+emergency.onclick = function()
+{
+	// Send settings over WebSocket
+	sendCommand( "STOP" );
+};
+
+save.onclick = function()
+{
+	// Send settings over WebSocket
+	sendCommand( "SAVE" );
 };

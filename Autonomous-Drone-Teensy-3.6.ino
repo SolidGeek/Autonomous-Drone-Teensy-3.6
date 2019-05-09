@@ -3,6 +3,9 @@
 #include "Settings.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "Stabilizer.h"
+#include <VL53L1X.h>
+
+VL53L1X altitude;
 
 // Initialise object for IMU
 Stabilizer controller;
@@ -13,6 +16,7 @@ IntervalTimer speedTimer;
 
 int speedVal = 0;
 int tempVal = 0;
+int altitudeVal = 0;
 
 #define TLM1 Serial2
 #define TLM2 Serial3
@@ -51,6 +55,8 @@ void dmpDataReady(){
   newAngles = true;
 }
 
+bool stopMotors = false;
+
 void setup() {
 
   Serial.begin(115200);
@@ -60,6 +66,8 @@ void setup() {
   // Begin stablizer and IMU
 
   controller.setup();
+
+  loadConfig();
 
   // Use the INTA pin on MPU6050 to know excatly when data is ready, and only here read it
   pinMode(imuIntPin, INPUT);
@@ -91,6 +99,17 @@ void setup() {
 
   speedTimer.begin(interruptThrottle, 3000); // Update throttle at 333 Hz
   speedTimer.priority(0);
+
+
+  altitude.setTimeout(500);
+  if (!altitude.init()){
+    Serial.println("No altitude sensor");
+  }
+
+  altitude.setDistanceMode(VL53L1X::Long);
+  altitude.setMeasurementTimingBudget(50000); // 50000 us (50 ms) 
+  // Start continuous readings at a rate of one measurement every 50 ms
+  altitude.startContinuous(50);
   
   delay(1000);
 }
@@ -103,55 +122,36 @@ void loop() {
   // New angle is ready, and there is at least 2900us to next dShot 
   if( newAngles && (micros()- lastSpeed <= 100) ) {
 
-    dataCount++;  
-    controller.motorMixing( speedVal1, speedVal2, speedVal3, speedVal4 );
-
+    dataCount++;
+    
+    controller.readDMPAngles();
+  
+    if( ! stopMotors ){
+      controller.motorMixing( speedVal1, speedVal2, speedVal3, speedVal4 );
+    }else{
+      speedVal1 = 0;
+      speedVal2 = 0;
+      speedVal3 = 0;
+      speedVal4 = 0;
+    }
+    
     if( dataCount >= 5 ){
 
-      sendTelemetry("ANGLE");
+      sendTelemetry("POS");
 
       sendTelemetry("SPEED");
       
       dataCount = 0;
     }  
+
+    if( altitude.dataReady() ){
+      altitudeVal = altitude.read();
+    }
+    
     newAngles = false;
   } 
 
-  if( WIFI.available() > 0 ){
-
-    WIFI.readBytesUntil('\n', buffer, 100);
-
-    if( strstr( buffer, "ROLL" ) != NULL ){
-      
-      char * ptr = buffer; 
-      ptr += 5; // Remove the command from the string we operate on
-
-      double kp = 0.0, ki = 0.0, kd = 0.0;
-      
-      valueFromString( buffer, "P", &kp );
-      valueFromString( buffer, "I", &ki );
-      valueFromString( buffer, "D", &kd );
-
-      controller.Roll.setConstants( kp, ki, kd );
-      
-    }
-
-    if( strstr( buffer, "PITCH" ) != NULL ){
-      
-      char * ptr = buffer; 
-      ptr += 6; // Remove the command from the string we operate on
-
-      double kp = 0.0, ki = 0.0, kd = 0.0;
-      
-      valueFromString( buffer, "P", &kp );
-      valueFromString( buffer, "I", &ki );
-      valueFromString( buffer, "D", &kd );
-
-      controller.Pitch.setConstants( kp, ki, kd );
-      
-    }
-    
-  }
+  listenWiFi();
 
   if( millis() - lastTlm > 100 ){
     lastTlm = millis();
@@ -192,8 +192,10 @@ void interruptThrottle(){
  
   lastSpeed = micros();
   // manuelThrottle( speedVal1, speedVal2, speedVal3, speedVal4 );
-  manuelThrottle( speedVal1 + speedOff1, speedVal2 + speedOff2, speedVal3 + speedOff3, speedVal4 + speedOff4 );
-  
+  if( ! stopMotors )
+    manuelThrottle( speedVal1 + speedOff1, speedVal2 + speedOff2, speedVal3 + speedOff3, speedVal4 + speedOff4 );
+  else
+    manuelThrottle( 0, 0, 0, 0 );
 }
 
 void manuelThrottle( int16_t s1, int16_t s2, int16_t s3, int16_t s4 ){
@@ -248,9 +250,9 @@ bool readTelemetry( uint8_t index ){
     telemetry[index].ampHours   = (float)((buf[5]<<8)|buf[6]);
     telemetry[index].rpm        = (float)((buf[7]<<8)|buf[8]) * 100.0 / 7.0; 
 
-    Serial.print(index);
+    /* Serial.print(index);
     Serial.print(":");
-    Serial.println( telemetry[index].rpm );
+    Serial.println( telemetry[index].rpm );*/ 
 
     return true;
 
@@ -294,12 +296,46 @@ bool valueFromString( char * packet, char * name, double * var ){
 
 }
 
+void sendConfig() {
+
+  strcpy(buffer, "CONFIG");
+
+  // Add roll config
+  addFloatToBuffer( config.rollKp, "P" );
+  addFloatToBuffer( config.rollKi, "I" );
+  addFloatToBuffer( config.rollKd, "D" );
+
+  // Add pitch config
+  addFloatToBuffer( config.pitchKp, "P" );
+  addFloatToBuffer( config.pitchKi, "I" );
+  addFloatToBuffer( config.pitchKd, "D" );
+  
+  // Add yaw config
+  addFloatToBuffer( config.yawKp, "P" );
+  addFloatToBuffer( config.yawKi, "I" );
+  addFloatToBuffer( config.yawKd, "D" );
+
+  WIFI.println(buffer);
+  
+}
+
+void addFloatToBuffer( float value , const char * name ){
+
+  char tempBuffer[20] = {'\0'};
+  
+  sprintf(tempBuffer, "%.2f", value );
+  strcat(buffer, " ");
+  strcat(buffer, name);
+  strcat(buffer, tempBuffer);  
+  
+}
+
 void sendTelemetry( const char * type ){
 
   char tempBuffer[20] = {'\0'};
   memset(buffer,0,sizeof(buffer));
   
-  if( strcmp( type, "ANGLE" ) == 0 ) {
+  if( strcmp( type, "POS" ) == 0 ) {
     
     strcpy(buffer, type);
   
@@ -314,6 +350,10 @@ void sendTelemetry( const char * type ){
     
     sprintf(tempBuffer, "%.2f", controller.angles[1]);
     strcat(buffer, " R");
+    strcat(buffer, tempBuffer);
+
+    sprintf(tempBuffer, "%d", altitudeVal);
+    strcat(buffer, " A");
     strcat(buffer, tempBuffer);
   
     WIFI.println(buffer);
@@ -339,11 +379,65 @@ void sendTelemetry( const char * type ){
     sprintf(tempBuffer, "%d", speedVal4);
     strcat(buffer, " D");
     strcat(buffer, tempBuffer);
-
-    Serial.println( buffer );
   
     WIFI.println(buffer);
   }
-
-  
 } 
+
+void listenWiFi(){
+  
+  if( WIFI.available() > 0 ){
+
+    WIFI.readBytesUntil('\n', buffer, 100);
+
+    // If app requests config
+    if( strstr( buffer, "CONFIG" ) != NULL ){
+      sendConfig();
+    }
+
+    if( strstr( buffer, "SAVE" ) != NULL ){
+      config.save();
+    }
+    
+    // If app requests config
+    if( strstr( buffer, "STOP" ) != NULL ){
+      stopMotors = true;
+    }
+
+    if( strstr( buffer, "ROLL" ) != NULL ){
+      
+      char * ptr = buffer; 
+      ptr += 5; // Remove the command from the string we operate on
+
+      double kp = 0.0, ki = 0.0, kd = 0.0;
+      
+      valueFromString( ptr, "P", &kp );
+      valueFromString( ptr, "I", &ki );
+      valueFromString( ptr, "D", &kd );
+
+      config.rollKp = kp;
+      config.rollKi = ki;
+      config.rollKd = kd;
+      controller.Roll.setConstants( kp, ki, kd );
+      
+    }
+
+    if( strstr( buffer, "PITCH" ) != NULL ){
+      
+      char * ptr = buffer; 
+      ptr += 6; // Remove the command from the string we operate on
+
+      double kp = 0.0, ki = 0.0, kd = 0.0;
+      
+      valueFromString( ptr, "P", &kp );
+      valueFromString( ptr, "I", &ki );
+      valueFromString( ptr, "D", &kd );
+
+      config.pitchKp = kp;
+      config.pitchKi = ki;
+      config.pitchKd = kd;
+      controller.Pitch.setConstants( kp, ki, kd );
+      
+    }
+  }  
+}

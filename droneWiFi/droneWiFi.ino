@@ -11,6 +11,7 @@ const char * ssid = "Drone WiFi";
 const char * password = "12345679";
 
 uint32_t lastPackage = 0;
+uint8_t wifiChannel = 10;
 
 // Local path to save the GCode recordings
 char recordPath[] = "/recording.txt";
@@ -67,7 +68,8 @@ void initWebserver( void ) {
 }
 
 void initWiFi( void ) {
-  if (! WiFi.softAP(ssid, password)) {
+  // Only allow for one connection at the time
+  if (! WiFi.softAP(ssid, password, wifiChannel )) {
     Serial.println("WIFI FAILED");
   }
 }

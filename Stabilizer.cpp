@@ -2,24 +2,9 @@
 
 Stabilizer::Stabilizer(){
 
-  /* Outer angle controllers */
-  Yaw.setConstants(0, 0, 0);
-  Pitch.setConstants(0.4, 0, 0.0);
-  Roll.setConstants(0.4, 0, 0.0);
-
-  Yaw.setMaxOutput(20);
-  Pitch.setMaxOutput(20);
-  Roll.setMaxOutput(20);
-  Pitch.setMaxIntegral(10);
-  Roll.setMaxIntegral(10);
-
-
   /* Inner angular speed controllers */
-  PitchSpeed.setConstants(1, 0, 0.0);
-  RollSpeed.setConstants(1, 0, 0.0);
-
-  PitchSpeed.setMaxOutput(2000);
-  RollSpeed.setMaxOutput(2000);
+  PitchSpeed.setConstants(1, 0, 0);
+  RollSpeed.setConstants(1, 0, 0);
 
 }
 
@@ -126,6 +111,10 @@ bool Stabilizer::readDMPAngles() {
 		angles[0] *= (180 / M_PI);
 		angles[1] *= (180 / M_PI);
 		angles[2] *= (180 / M_PI);
+
+
+    // Get gyro values for inner loop stabilization also
+    IMU.dmpGetGyro( gyro, fifoBuffer );
 
 		return true;
 
@@ -239,13 +228,10 @@ void Stabilizer::setIMUOffsets( void ) {
 // Should be run everytime new data from sensors is ready
 void Stabilizer::motorMixing( int16_t &s1, int16_t &s2, int16_t &s3, int16_t &s4 ){
 
-  readDMPAngles();
-
-  IMU.dmpGetGyro( gyro, fifoBuffer );
-
 	// Thrust needed to lift (should be found with altitude controller)
 	int16_t thrust = 250;
 
+  // Outer controller loops
 	Yaw.run( 0, angles[0] );
 	Roll.run( 0, angles[1] );
 	Pitch.run( 0, angles[2] );
@@ -254,9 +240,9 @@ void Stabilizer::motorMixing( int16_t &s1, int16_t &s2, int16_t &s3, int16_t &s4
   int16_t roll_out = (int16_t)Roll.getOutput();
   int16_t pitch_out = (int16_t)Pitch.getOutput();
 
-  RollSpeed.run( roll_out, gyro[1] );
+  RollSpeed.run( roll_out, -gyro[1] );
   PitchSpeed.run( pitch_out, gyro[0] );
-
+  
   int16_t tau_roll = (int16_t)RollSpeed.getOutput();
 	int16_t tau_pitch = (int16_t)PitchSpeed.getOutput();
 

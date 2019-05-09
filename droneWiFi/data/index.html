@@ -11,12 +11,17 @@
 
 </head>
 <body>
+
 	<header>
-		<h1>Drone Controlpanel</h1>
-		<span id="status">Status</span>
+		<div class="container position-relative">
+			<h1>Drone Controlpanel</h1>
+			<span id="status">Status</span>
+		</div>
 	</header>
 
 	<div class="container">
+
+		<h3>Live data</h3>
 
 		<div class="row mb-3">
 
@@ -27,13 +32,14 @@
 
 			<div class="col-sm-3">
 
-				<h4 class="mb-3">Angles</h4>
-
 				<div class="input-group mb-3">
 					<div class="input-group-prepend">
 						<span class="input-group-text">Roll</span>
 					</div>
 					<input class="form-control" style="color:#ec1a1a" id="roll_value" type="number" disabled="true" value="0">
+					<div class="input-group-append">
+						<span class="input-group-text" id="inputGroupFileAddon02">deg</span>
+					</div>
 				</div>
 				
 				<div class="input-group mb-3">
@@ -41,6 +47,9 @@
 						<span class="input-group-text">Pitch</span>
 					</div>
 					<input class="form-control" style="color: #01799e" id="pitch_value" type="number" disabled="true" value="0">
+					<div class="input-group-append">
+						<span class="input-group-text" id="inputGroupFileAddon02">deg</span>
+					</div>
 				</div>
 
 				<div class="input-group mb-3">
@@ -48,27 +57,27 @@
 						<span class="input-group-text">Yaw</span>
 					</div>
 					<input class="form-control" style="color: #0e9a27" id="yaw_value" type="number" disabled="true" value="0">
+					<div class="input-group-append">
+						<span class="input-group-text" id="inputGroupFileAddon02">deg</span>
+					</div>
+
+				</div>
+
+				<div class="input-group mb-3">
+					<div class="input-group-prepend">
+						<span class="input-group-text">Altitude</span>
+					</div>
+					<input class="form-control" id="alt_value" type="number" disabled="true" value="0">
+					<div class="input-group-append">
+						<span class="input-group-text" id="inputGroupFileAddon02">mm</span>
+					</div>
+
 				</div>
 				
-
 			</div>
-
-			
-			
-			
-
 		</div>
 
 		<div class="row">
-
-			<div class="col-sm-6">
-				<div class="card mb-3">
-					<div class="card-header">
-						Log
-					</div>
-					<textarea id="log" class="form-control" rows="5"></textarea>
-				</div>
-			</div>
 
 			<div class="col-sm-6">
 
@@ -109,19 +118,71 @@
 
 								<tr>
 									<td>Yaw</td>
-									<td><input type="number" name="yaw_p" class="form-control form-control-sm" value="0"></td>
-									<td><input type="number" name="yaw_i" class="form-control form-control-sm" value="0"></td>
-									<td><input type="number" name="yaw_d" class="form-control form-control-sm" value="0"></td>
-									<td><input type="submit" id="send_yaw" value="Send"></td>
+									<td><input type="number" name="yaw_p" class="form-control form-control-sm" value="0" disabled></td>
+									<td><input type="number" name="yaw_i" class="form-control form-control-sm" value="0" disabled></td>
+									<td><input type="number" name="yaw_d" class="form-control form-control-sm" value="0" disabled></td>
+									<td><input type="submit" id="send_yaw" value="Send" disabled></td>
 								</tr>
 
+								<tr>
+									<td>Altitude</td>
+									<td><input type="number" name="alt_p" class="form-control form-control-sm" value="0" disabled></td>
+									<td><input type="number" name="alt_i" class="form-control form-control-sm" value="0" disabled></td>
+									<td><input type="number" name="alt_d" class="form-control form-control-sm" value="0" disabled></td>
+									<td><input type="submit" id="send_alt" value="Send" disabled></td>
+								</tr>
 
 							</tbody>
 
 						</table>
+
+						<button id="save" class="btn btn-primary btn-block">Save permanent</button>
 					</div>
 				</div>
+
+				<div class="card mb-3">
+					<div class="card-header">
+						Log
+					</div>
+					<textarea id="log" class="form-control" rows="5"></textarea>
+				</div>
 			</div>
+
+
+			<div class="col-sm-6">
+				<table class="table mt-3 mb-3 table-borderless">
+					<tr>
+						<td style="width: 140px">
+							<label>Motor 1</label>
+							<input class="form-control form-control-sm" type="number" name="motor1" disabled>
+						</td>
+
+						<td rowspan="2"><img src="drone.svg" class="img-svg"></td>
+
+						<td style="width: 140px">
+							<label>Motor 2</label>
+							<input class="form-control form-control-sm" type="number" name="motor2" disabled>
+						</td>
+					</tr>
+					<tr>
+						<td class="align-bottom">
+							<label>Motor 4</label>
+							<input class="form-control form-control-sm" type="number" name="motor4" disabled>
+						</td>
+						
+						<td class="align-bottom">
+							<label>Motor 3</label>
+							<input class="form-control form-control-sm" type="number" name="motor3" disabled>
+						</td>
+					</tr>	
+
+
+				</table>
+
+				<button id="emergency" class="btn btn-block btn-danger btn-lg">EMERGENCY STOP</button>
+
+			</div>
+
 		</div>
 
 		
