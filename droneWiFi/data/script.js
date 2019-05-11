@@ -7,14 +7,16 @@ var logElement 	= document.getElementById("log");
 var sendRoll 	= document.getElementById("send_roll");
 var sendPitch 	= document.getElementById("send_pitch");
 var sendYaw 	= document.getElementById("send_yaw");
+var sendOffset 	= document.getElementById("send_offset");
 var emergency 	= document.getElementById("emergency");
+var start 		= document.getElementById("start");
 var save 		= document.getElementById("save");
 
 
 var configRead = false;
 
 // Min interval in ms between each command 
-var wsInterval = 500;
+var wsInterval = 100;
 
 
 window.onload = function() {
@@ -35,24 +37,19 @@ window.onload = function() {
 		}
 
 	}, 1500);
+
+	setInterval(function() {
+
+		if(websocket.readyState == 1){
+
+			sendCommand( "ALIVE" );
+
+		}
+
+	}, 100);
+
+	setTimeout(websocketInterval, wsInterval);
 }
-
-/* Keep the websocket connection alive 
-var websocketInterval = function() {
-
-	if(websocket.readyState == 1){
-
-		sendCommand( "ALIVE" );
-
-	}
-
-	// Set next timeout
-    setTimeout(websocketInterval, wsInterval);
-}*/
-
-
-
-
 
 function initWebSocket()
 {
@@ -72,8 +69,6 @@ function initWebSocket()
 		websocket.close();
 	});
 
-	// setTimeout(websocketInterval, wsInterval);
-
 }
 
 function sendCommand( command, param = [] ){
@@ -86,7 +81,7 @@ function sendCommand( command, param = [] ){
 	}
 
 	if(websocket.readyState == 1){
-		console.log( gcode );
+		
 		websocket.send( gcode + " " );
 	}
 }
@@ -106,9 +101,7 @@ function onWsMessage(event) {
 
 	var data = event.data;
 
-	if( data.includes("POS") ){
-
-		console.log( data );
+	if( data.includes("ANGLE") ){
 
 		var tlm = [];
 
@@ -127,7 +120,30 @@ function onWsMessage(event) {
 		document.getElementById('roll_value').value = tlm[2];
 		document.getElementById('pitch_value').value = tlm[1];
 		document.getElementById('yaw_value').value = tlm[0];
-		document.getElementById('alt_value').value = tlm[3];
+	}
+
+	if( data.includes("ALTITUDE") ){
+
+		// Read data about position and update current positions
+		var items = data.split(" ");
+		items.shift(); // Remove "ANGLE" from array
+
+		var value = parseFloat( items[0].substring(1, items[0].length) );
+
+		altitude.append( Date.now(), value);
+		document.getElementById('alt_value').value = value;
+	}
+
+	if( data.includes("BATTERY") ){
+
+		// Read data about position and update current positions
+		var items = data.split(" ");
+		items.shift(); // Remove "ANGLE" from array
+
+		var value = parseFloat( items[0].substring(1, items[0].length) );
+
+		document.getElementById('voltage').value = value
+
 	}
 
 	else if( data.includes("SPEED") ){
@@ -140,17 +156,18 @@ function onWsMessage(event) {
 		items.shift(); // Remove "ANGLE" from array
 
 		for (var i in items) {
-	    	speeds[i] = parseFloat( items[i].substring(1, items[i].length) );
+	    	speeds[i] = parseInt( items[i].substring(1, items[i].length) );
 		}
 
 		document.getElementsByName('motor1')[0].value = speeds[0];
 		document.getElementsByName('motor2')[0].value = speeds[1];
 		document.getElementsByName('motor3')[0].value = speeds[2];
 		document.getElementsByName('motor4')[0].value = speeds[3];
-
 	}
 
 	else if( data.includes("CONFIG") ) {
+
+		console.log( data );
 
 		var settings = [];
 
@@ -175,6 +192,16 @@ function onWsMessage(event) {
 		document.getElementsByName('yaw_i')[0].value = settings[7];
 		document.getElementsByName('yaw_d')[0].value = settings[8];
 
+		document.getElementsByName('alt_p')[0].value = settings[9];
+		document.getElementsByName('alt_i')[0].value = settings[10];
+		document.getElementsByName('alt_d')[0].value = settings[11];
+
+		document.getElementsByName('hoverOffset')[0].value = settings[12];
+		document.getElementById('hoverOffsetShow').value = settings[12];
+		document.getElementsByName('offset1')[0].value = settings[13];
+		document.getElementsByName('offset2')[0].value = settings[14];
+		document.getElementsByName('offset3')[0].value = settings[15];
+		document.getElementsByName('offset4')[0].value = settings[16];
 		configRead = true;
 
 	}
@@ -199,19 +226,7 @@ function setStatus( text, type ){
 	statusBar.innerHTML = text;
 }
 
-
-
-
-// Definition of objects to hold realtime data for the chart
-var roll = new TimeSeries();
-var pitch = new TimeSeries();
-var yaw = new TimeSeries();
-
-// Get the element object with the ID angleChart
-var angleCanvas = document.getElementById('angleChart');
-
-
-function myYRangeFunction(range) {	
+function sameMinMaxRange(range) {	
 	var max = 0;
 	var min = 0;
 
@@ -229,9 +244,30 @@ function myYRangeFunction(range) {
 	return {min: min, max: max};
 }
 
-// Setup the chart settings
+function minMaxRange(range) {	
+	var max = 0;
+	var min = 0;
+
+	if( range.max > max ){
+		max = range.max;
+	}
+
+	if( range.min < min ){
+		min = range.min;
+	}
+
+	return {min: min, max: max};
+}
+
+/* ---- AngleChart ---- */
+var roll = new TimeSeries();
+var pitch = new TimeSeries();
+var yaw = new TimeSeries();
+
+var angleCanvas = document.getElementById('angleChart');
+
 var angleChart = new SmoothieChart({
-	yRangeFunction:myYRangeFunction,
+	yRangeFunction:sameMinMaxRange,
 	millisPerPixel:10,
 	grid:{
 		fillStyle:'transparent',
@@ -243,14 +279,34 @@ var angleChart = new SmoothieChart({
 	responsive: true
 });
 
-// Assign each of the dataseries to their own graph on the chart, with each their different color
 angleChart.addTimeSeries(roll, { strokeStyle: '#ec1a1a' });
 angleChart.addTimeSeries(pitch, { strokeStyle: '#01799e' });
-// angleChart.addTimeSeries(yaw, { strokeStyle: '#0e9a27' });
+angleChart.addTimeSeries(yaw, { strokeStyle: '#0e9a27' });
 
-// Tell the chart object to begin streaming of data to the HTML canvas with a delay of 100ms
 angleChart.streamTo(angleCanvas, 100);
+ 
 
+/* ---- AltitudeChart ---- */
+var altitude = new TimeSeries();
+
+var altCanvas = document.getElementById('altChart');
+
+var altChart = new SmoothieChart({
+	millisPerPixel:10,
+	grid:{
+		fillStyle:'transparent',
+		verticalSections:10,
+		strokeStyle:'#c9c9c9'
+	},
+	labels:{fillStyle:'#000',fontSize:14},
+	tooltip:true,
+	responsive: true,
+	yRangeFunction:minMaxRange,
+});
+
+altChart.addTimeSeries(altitude, { strokeStyle: '#000' });
+
+altChart.streamTo(altCanvas, 100);
 
 sendRoll.onclick = function()
 {
@@ -282,14 +338,75 @@ sendPitch.onclick = function()
 	] );
 };
 
+sendYaw.onclick = function()
+{
+	// Save the settings to variables
+	var kp = document.getElementsByName('yaw_p')[0].value;
+	var ki = document.getElementsByName('yaw_i')[0].value;
+	var kd = document.getElementsByName('yaw_d')[0].value;
+
+	// Send settings over WebSocket
+	sendCommand( "YAW", [
+		{name: "P", value: kp},
+		{name: "I", value: ki},
+		{name: "D", value: kd},
+	] );
+};
+
+sendOffset.onclick = function(){
+
+	// Save the settings to variables
+	var hoverOffset = document.getElementsByName('hoverOffset')[0].value;
+	var offset1 = document.getElementsByName('offset1')[0].value;
+	var offset2 = document.getElementsByName('offset2')[0].value;
+	var offset3 = document.getElementsByName('offset3')[0].value;
+	var offset4 = document.getElementsByName('offset4')[0].value;
+
+	// Send settings over WebSocket
+	sendCommand( "OFFSET", [
+		{name: "H", value: hoverOffset},
+		{name: "A", value: offset1},
+		{name: "B", value: offset2},
+		{name: "C", value: offset3},
+		{name: "D", value: offset4},
+	] );
+}
+
 emergency.onclick = function()
 {
 	// Send settings over WebSocket
 	sendCommand( "STOP" );
 };
 
+start.onclick = function(){
+	sendCommand( "START" );
+}
+
 save.onclick = function()
 {
 	// Send settings over WebSocket
 	sendCommand( "SAVE" );
 };
+
+function openTab(evt, name) {
+	// Declare all variables
+	var i, tabcontent, tablinks;
+
+	// Get all elements with class="tabcontent" and hide them
+	tabcontent = document.getElementsByClassName("tabcontent");
+	for (i = 0; i < tabcontent.length; i++) {
+		tabcontent[i].style.display = "none";
+	}
+
+	// Get all elements with class="tablinks" and remove the class "active"
+	tablinks = document.getElementsByClassName("tablinks");
+	for (i = 0; i < tablinks.length; i++) {
+		tablinks[i].className = tablinks[i].className.replace(" active", "");
+	}
+
+	// Show the current tab, and add an "active" class to the button that opened the tab
+	document.getElementById(name).style.display = "block";
+	evt.currentTarget.className += " active";
+}
+
+document.getElementById("defaultOpen").click();

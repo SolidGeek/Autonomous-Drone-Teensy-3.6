@@ -3,16 +3,18 @@
 #include "Settings.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "Stabilizer.h"
-#include <VL53L1X.h>
 
-VL53L1X altitude;
+
+
 
 // Initialise object for IMU
-Stabilizer controller;
-
-Settings config;
+Stabilizer FC;
 
 IntervalTimer speedTimer;
+
+bool isConnected = false;
+uint32_t lastAlive = 0;
+
 
 int speedVal = 0;
 int tempVal = 0;
@@ -30,44 +32,28 @@ DShot ESC2(2);
 DShot ESC3(3);
 DShot ESC4(4);
 
-
-
-struct Telemetry{
-  float temp; 
-  float voltage;
-  float amps;
-  float ampHours;
-  float rpm;
-} telemetry[4];
-
 uint32_t lastTlm = 0;
 uint32_t lastThrottle = 0;
 uint8_t tlmNumber = 0;
 
 uint8_t imuIntPin = 2;
 volatile bool newAngles = false;
+volatile int countDmp = 0;
 volatile uint32_t lastSpeed = 0;
 
-int16_t speedVal1 = 0, speedVal2 = 0, speedVal3 = 0, speedVal4 = 0;
-int16_t speedOff1 = 8, speedOff2 = 0, speedOff3 = 9, speedOff4 = 3;
-
+// Interrupt when IMU data is ready to be read
 void dmpDataReady(){
   newAngles = true;
+  countDmp++;
 }
-
-bool stopMotors = false;
 
 void setup() {
 
   Serial.begin(115200);
   WIFI.begin(115200);
 
-
-  // Begin stablizer and IMU
-
-  controller.setup();
-
-  loadConfig();
+  // Begin flight stablizer (IMU, altitude etc.)
+  FC.setup();
 
   // Use the INTA pin on MPU6050 to know excatly when data is ready, and only here read it
   pinMode(imuIntPin, INPUT);
@@ -110,42 +96,54 @@ void setup() {
   altitude.setMeasurementTimingBudget(50000); // 50000 us (50 ms) 
   // Start continuous readings at a rate of one measurement every 50 ms
   altitude.startContinuous(50);
+
+
+  /* Makes sure the DMP values have settled */
+  while( countDmp < 500 ){
+    if (newAngles){
+      FC.readDMPAngles();
+      newAngles = false;  
+    }
+  } 
+
+  FC.setHome();
   
   delay(1000);
 }
 
-char buffer[100] = {'\0'};
+char buffer[200] = {'\0'};
 uint8_t dataCount = 0;
 
 void loop() {
+
+  if( millis() - lastAlive < 500 ) {
+    isConnected = true;
+  }else{
+    isConnected = false;
+    FC.motorsOn = false;
+  }
 
   // New angle is ready, and there is at least 2900us to next dShot 
   if( newAngles && (micros()- lastSpeed <= 100) ) {
 
     dataCount++;
-    
-    controller.readDMPAngles();
+
+    FC.motorMixing( );
+
+    // Send motor speed an angle at 100 Hz ( new angle at 100 Hz )
   
-    if( ! stopMotors ){
-      controller.motorMixing( speedVal1, speedVal2, speedVal3, speedVal4 );
-    }else{
-      speedVal1 = 0;
-      speedVal2 = 0;
-      speedVal3 = 0;
-      speedVal4 = 0;
-    }
-    
+    sendTelemetry("ANGLE");
+    sendTelemetry("SPEED");
+
     if( dataCount >= 5 ){
 
-      sendTelemetry("POS");
-
-      sendTelemetry("SPEED");
-      
+      sendTelemetry("BATTERY");
       dataCount = 0;
-    }  
+    }
 
     if( altitude.dataReady() ){
       altitudeVal = altitude.read();
+      sendTelemetry("ALTITUDE");
     }
     
     newAngles = false;
@@ -154,6 +152,7 @@ void loop() {
   listenWiFi();
 
   if( millis() - lastTlm > 100 ){
+    
     lastTlm = millis();
 
     tlmNumber++;
@@ -173,29 +172,21 @@ void loop() {
     }
   }
 
-  readTelemetry( tlmNumber );
+  if( ESC1.readTelemetry( &TLM1 ) ){
+    Serial.println( ESC1.tlm.voltage );
+  }
+
+  
 
 }
 
-void loadConfig(){
-  
-  config.load();
-
-  // Set all PID constants from config (EEPROM)
-  controller.Yaw.setConstants( config.yawKp, config.yawKi, config.yawKd );
-  controller.Roll.setConstants( config.rollKp, config.rollKi, config.rollKd );
-  controller.Pitch.setConstants( config.pitchKp, config.pitchKi, config.pitchKd );
-  
-}
 
 void interruptThrottle(){
  
   lastSpeed = micros();
-  // manuelThrottle( speedVal1, speedVal2, speedVal3, speedVal4 );
-  if( ! stopMotors )
-    manuelThrottle( speedVal1 + speedOff1, speedVal2 + speedOff2, speedVal3 + speedOff3, speedVal4 + speedOff4 );
-  else
-    manuelThrottle( 0, 0, 0, 0 );
+  
+  manuelThrottle( FC.s1, FC.s2, FC.s3, FC.s4 );
+  
 }
 
 void manuelThrottle( int16_t s1, int16_t s2, int16_t s3, int16_t s4 ){
@@ -204,61 +195,6 @@ void manuelThrottle( int16_t s1, int16_t s2, int16_t s3, int16_t s4 ){
   ESC2.setThrottle( s2 );
   ESC3.setThrottle( s3 );
   ESC4.setThrottle( s4 );
-
-}
-
-
-
-bool readTelemetry( uint8_t index ){
-
-  Stream * port;
-
-  switch( index ){
-    case 0: port = &TLM1; break;
-    case 1: port = &TLM2; break;
-    case 2: port = &TLM3; break;
-    case 3: port = &TLM4; break;
-  }
-
-  uint8_t buf[10];
-  uint8_t num = 0;
-  bool tlmDone = false;
-  uint32_t lastTime = 0;
-
-  if( port->available() > 0 ){
-
-    lastTime = micros();
-
-    while( tlmDone == false && (micros() - lastTime) < 500 ) {
-
-      if( port->available() ){
-        buf[num++] = port->read(); 
-        lastTime = micros();
-      }
-      
-      if( num == 10 )
-        tlmDone = true; 
-      
-    }
-  }
-
-  if( tlmDone == true ){
-    
-    telemetry[index].temp       = (float)(buf[0]);
-    telemetry[index].voltage    = (float)((buf[1]<<8)|buf[2]) / 100.0;
-    telemetry[index].amps       = (float)((buf[3]<<8)|buf[4]) / 100.0;
-    telemetry[index].ampHours   = (float)((buf[5]<<8)|buf[6]);
-    telemetry[index].rpm        = (float)((buf[7]<<8)|buf[8]) * 100.0 / 7.0; 
-
-    /* Serial.print(index);
-    Serial.print(":");
-    Serial.println( telemetry[index].rpm );*/ 
-
-    return true;
-
-  }
-
-  return false;
 
 }
 
@@ -298,22 +234,35 @@ bool valueFromString( char * packet, char * name, double * var ){
 
 void sendConfig() {
 
+  memset(buffer, 0, sizeof(buffer));
   strcpy(buffer, "CONFIG");
 
   // Add roll config
-  addFloatToBuffer( config.rollKp, "P" );
-  addFloatToBuffer( config.rollKi, "I" );
-  addFloatToBuffer( config.rollKd, "D" );
+  addFloatToBuffer( FC.config.rollKp, "P" );
+  addFloatToBuffer( FC.config.rollKi, "I" );
+  addFloatToBuffer( FC.config.rollKd, "D" );
 
   // Add pitch config
-  addFloatToBuffer( config.pitchKp, "P" );
-  addFloatToBuffer( config.pitchKi, "I" );
-  addFloatToBuffer( config.pitchKd, "D" );
+  addFloatToBuffer( FC.config.pitchKp, "P" );
+  addFloatToBuffer( FC.config.pitchKi, "I" );
+  addFloatToBuffer( FC.config.pitchKd, "D" );
   
   // Add yaw config
-  addFloatToBuffer( config.yawKp, "P" );
-  addFloatToBuffer( config.yawKi, "I" );
-  addFloatToBuffer( config.yawKd, "D" );
+  addFloatToBuffer( FC.config.yawKp, "P" );
+  addFloatToBuffer( FC.config.yawKi, "I" );
+  addFloatToBuffer( FC.config.yawKd, "D" );
+
+  // Add m
+  addFloatToBuffer( FC.config.altKp, "P" );
+  addFloatToBuffer( FC.config.altKi, "I" );
+  addFloatToBuffer( FC.config.altKd, "D" );
+
+  // Send also motor offsets
+  addIntToBuffer( FC.config.hoverOffset, "H" );
+  addIntToBuffer( FC.config.offset1, "A" );
+  addIntToBuffer( FC.config.offset2, "B" );
+  addIntToBuffer( FC.config.offset3, "C" );
+  addIntToBuffer( FC.config.offset4, "D" );
 
   WIFI.println(buffer);
   
@@ -330,28 +279,46 @@ void addFloatToBuffer( float value , const char * name ){
   
 }
 
+void addIntToBuffer( int value , const char * name ){
+
+  char tempBuffer[20] = {'\0'};
+  
+  sprintf(tempBuffer, "%d", value );
+  strcat(buffer, " ");
+  strcat(buffer, name);
+  strcat(buffer, tempBuffer);  
+  
+}
+
 void sendTelemetry( const char * type ){
 
   char tempBuffer[20] = {'\0'};
-  memset(buffer,0,sizeof(buffer));
+  memset(buffer, 0, sizeof(buffer));
   
-  if( strcmp( type, "POS" ) == 0 ) {
+  if( strcmp( type, "ANGLE" ) == 0 ) {
     
     strcpy(buffer, type);
   
     // Build telemetry buffer
-    sprintf(tempBuffer, "%.2f", controller.angles[0]);
+    sprintf(tempBuffer, "%.2f", FC.angles[0]);
     strcat(buffer, " Y");
     strcat(buffer, tempBuffer);
   
-    sprintf(tempBuffer, "%.2f", controller.angles[2]);
+    sprintf(tempBuffer, "%.2f", FC.angles[2]);
     strcat(buffer, " P");
     strcat(buffer, tempBuffer);
     
-    sprintf(tempBuffer, "%.2f", controller.angles[1]);
+    sprintf(tempBuffer, "%.2f", FC.angles[1]);
     strcat(buffer, " R");
     strcat(buffer, tempBuffer);
-
+  
+    WIFI.println(buffer);
+  }
+  
+  else if( strcmp( type, "ALTITUDE" ) == 0 ) {
+    
+    strcpy(buffer, type);
+  
     sprintf(tempBuffer, "%d", altitudeVal);
     strcat(buffer, " A");
     strcat(buffer, tempBuffer);
@@ -359,24 +326,46 @@ void sendTelemetry( const char * type ){
     WIFI.println(buffer);
   }
 
+  else if( strcmp( type, "BATTERY" ) == 0 ) {
+
+    // Find voltage of battery from average
+
+    float voltage = 0.0;
+
+    /* for( uint8_t i = 0; i < 4; i++ ){
+      voltage += telemetry[i].voltage; 
+    }
+
+    voltage = voltage/4.0;*/
+    
+    strcpy(buffer, type);
+  
+    sprintf(tempBuffer, "%.2f", voltage);
+    strcat(buffer, " V");
+    strcat(buffer, tempBuffer);
+  
+    WIFI.println(buffer);
+
+  }
+
   else if( strcmp( type, "SPEED" ) == 0 ) {
   
     strcpy(buffer, type);
   
     // Build telemetry buffer
-    sprintf(tempBuffer, "%d", speedVal1);
+    sprintf(tempBuffer, "%d", FC.s1);
     strcat(buffer, " A");
     strcat(buffer, tempBuffer);
   
-    sprintf(tempBuffer, "%d", speedVal2);
+    sprintf(tempBuffer, "%d", FC.s2);
     strcat(buffer, " B");
     strcat(buffer, tempBuffer);
     
-    sprintf(tempBuffer, "%d", speedVal3);
+    sprintf(tempBuffer, "%d", FC.s3);
     strcat(buffer, " C");
     strcat(buffer, tempBuffer);
 
-    sprintf(tempBuffer, "%d", speedVal4);
+    sprintf(tempBuffer, "%d", FC.s4);
     strcat(buffer, " D");
     strcat(buffer, tempBuffer);
   
@@ -388,6 +377,7 @@ void listenWiFi(){
   
   if( WIFI.available() > 0 ){
 
+    memset(buffer, 0, sizeof(buffer));
     WIFI.readBytesUntil('\n', buffer, 100);
 
     // If app requests config
@@ -395,13 +385,20 @@ void listenWiFi(){
       sendConfig();
     }
 
+    if( strstr( buffer, "ALIVE" ) != NULL ){
+      lastAlive = millis();  
+    }
+
     if( strstr( buffer, "SAVE" ) != NULL ){
-      config.save();
+      FC.config.save();
     }
     
-    // If app requests config
+    if( strstr( buffer, "START" ) != NULL ){
+      FC.motorsOn = true;
+    }
+    
     if( strstr( buffer, "STOP" ) != NULL ){
-      stopMotors = true;
+      FC.motorsOn = false;
     }
 
     if( strstr( buffer, "ROLL" ) != NULL ){
@@ -415,10 +412,10 @@ void listenWiFi(){
       valueFromString( ptr, "I", &ki );
       valueFromString( ptr, "D", &kd );
 
-      config.rollKp = kp;
-      config.rollKi = ki;
-      config.rollKd = kd;
-      controller.Roll.setConstants( kp, ki, kd );
+      FC.config.rollKp = kp;
+      FC.config.rollKi = ki;
+      FC.config.rollKd = kd;
+      FC.Roll.setConstants( kp, ki, kd );
       
     }
 
@@ -433,10 +430,49 @@ void listenWiFi(){
       valueFromString( ptr, "I", &ki );
       valueFromString( ptr, "D", &kd );
 
-      config.pitchKp = kp;
-      config.pitchKi = ki;
-      config.pitchKd = kd;
-      controller.Pitch.setConstants( kp, ki, kd );
+      FC.config.pitchKp = kp;
+      FC.config.pitchKi = ki;
+      FC.config.pitchKd = kd;
+      FC.Pitch.setConstants( kp, ki, kd );
+      
+    }
+
+    if( strstr( buffer, "YAW" ) != NULL ){
+      
+      char * ptr = buffer; 
+      ptr += 4; // Remove the command from the string we operate on
+
+      double kp = 0.0, ki = 0.0, kd = 0.0;
+      
+      valueFromString( ptr, "P", &kp );
+      valueFromString( ptr, "I", &ki );
+      valueFromString( ptr, "D", &kd );
+
+      FC.config.yawKp = kp;
+      FC.config.yawKi = ki;
+      FC.config.yawKd = kd;
+      FC.Yaw.setConstants( kp, ki, kd );
+      
+    }
+
+    if( strstr( buffer, "OFFSET" ) != NULL ){
+      
+      char * ptr = buffer; 
+      ptr += 7; // Remove the command from the string we operate on
+
+      double tempOffset1 = 0.0, tempOffset2 = 0.0, tempOffset3 = 0.0, tempOffset4 = 0.0, hoverOffset = 0.0;
+
+      valueFromString( ptr, "H", &hoverOffset );
+      valueFromString( ptr, "A", &tempOffset1 );
+      valueFromString( ptr, "B", &tempOffset2 );
+      valueFromString( ptr, "C", &tempOffset3 );
+      valueFromString( ptr, "D", &tempOffset4 );
+
+      FC.config.hoverOffset = (int16_t)hoverOffset;
+      FC.config.offset1 = (int16_t)tempOffset1;
+      FC.config.offset2 = (int16_t)tempOffset2;
+      FC.config.offset3 = (int16_t)tempOffset3;
+      FC.config.offset4 = (int16_t)tempOffset4;
       
     }
   }  

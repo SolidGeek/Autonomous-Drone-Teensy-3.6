@@ -5,7 +5,14 @@ Stabilizer::Stabilizer(){
   /* Inner angular speed controllers */
   PitchSpeed.setConstants(1, 0, 0);
   RollSpeed.setConstants(1, 0, 0);
+  YawSpeed.setConstants(1, 0, 0);
 
+  /* Integral windup */
+  Pitch.setMaxIntegral(10.0);
+  Roll.setMaxIntegral(10.0);
+  Yaw.setMaxIntegral(10.0);
+  
+  YawSpeed.setMaxOutput(150.0);
 }
 
 void Stabilizer::setup() {
@@ -14,6 +21,12 @@ void Stabilizer::setup() {
 
 	Wire.begin();
 	Wire.setClock(400000);
+
+  config.load();
+
+  Yaw.setConstants( config.yawKp, config.yawKi, config.yawKd );
+  Roll.setConstants( config.rollKp, config.rollKi, config.rollKd );
+  Pitch.setConstants( config.pitchKp, config.pitchKi, config.pitchKd );
 
 	// Initialize the IMU with stardard parameters for calibration
 
@@ -32,12 +45,12 @@ void Stabilizer::setup() {
 	// Set found offsets again
 	// this->setIMUOffsets();
 
-  IMU.setXAccelOffset(939);
-  IMU.setYAccelOffset(-1627);
-  IMU.setZAccelOffset(980);
-  IMU.setXGyroOffset(104);
-  IMU.setYGyroOffset(1);
-  IMU.setZGyroOffset(27);
+  IMU.setXAccelOffset(930);
+  IMU.setYAccelOffset(-1658);
+  IMU.setZAccelOffset(972);
+  IMU.setXGyroOffset(103);
+  IMU.setYGyroOffset(6);
+  IMU.setZGyroOffset(29);
 
 	// Check if
 	if ( this->dmpStatus == 0) {
@@ -86,7 +99,6 @@ bool Stabilizer::readDMPAngles() {
 
 		#ifdef _DEBUG
 			Serial.print( "FIFO overflow!" );
-			Serial.println( this->imuStatus, BIN );
 		#endif
 
 		// Otherwise, check for DMP data ready interrupt
@@ -102,7 +114,7 @@ bool Stabilizer::readDMPAngles() {
 		// (this lets us immediately read more without waiting for an interrupt)
 		fifoCount -= packetSize;
 
-		// display Euler angles in degrees
+		// Calculate Euler angles from quaternions and gravity
 		IMU.dmpGetQuaternion( &q, fifoBuffer );
 		IMU.dmpGetGravity( &gravity, &q);
 		IMU.dmpGetYawPitchRoll( angles, &q, &gravity);
@@ -226,30 +238,60 @@ void Stabilizer::setIMUOffsets( void ) {
 }
 
 // Should be run everytime new data from sensors is ready
-void Stabilizer::motorMixing( int16_t &s1, int16_t &s2, int16_t &s3, int16_t &s4 ){
+void Stabilizer::motorMixing( ){
 
-	// Thrust needed to lift (should be found with altitude controller)
-	int16_t thrust = 250;
+  readDMPAngles();
+
+  // Calculate yaw angle according to drones reference frame (0 = startup angle)
+  float alpha_real = angles[0];
+  float alpha_ref = yawRef;
+  float droneYaw = alpha_real - alpha_ref;
+  float alpha_drone = 0.0;
+  
+  if( droneYaw > 180.0 ){
+    alpha_drone = droneYaw - 360.0;
+  }
+  else if( droneYaw < -180.0 ){
+    alpha_drone = droneYaw + 360.0;
+  }
+  else
+    alpha_drone = droneYaw; 
 
   // Outer controller loops
-	Yaw.run( 0, angles[0] );
+	Yaw.run( yawSetpoint, alpha_drone );
 	Roll.run( 0, angles[1] );
 	Pitch.run( 0, angles[2] );
 
-  int16_t yaw_out = (int16_t)Yaw.getOutput();
-  int16_t roll_out = (int16_t)Roll.getOutput();
-  int16_t pitch_out = (int16_t)Pitch.getOutput();
+  float yaw_out = Yaw.getOutput();
+  float roll_out = Roll.getOutput();
+  float pitch_out = Pitch.getOutput();
 
+  YawSpeed.run( yaw_out, gyro[2] );
   RollSpeed.run( roll_out, -gyro[1] );
   PitchSpeed.run( pitch_out, gyro[0] );
   
   int16_t tau_roll = (int16_t)RollSpeed.getOutput();
 	int16_t tau_pitch = (int16_t)PitchSpeed.getOutput();
+  int16_t tau_yaw = (int16_t)YawSpeed.getOutput();
+  
+  if( motorsOn == true ){
+    // Speeds 3, 4, 1, 2 because IMU is turned 90 degress x = y, and y = x
+    s3 = constrain( config.offset3 + config.hoverOffset - tau_yaw + tau_pitch - tau_roll, 0, 2000 ) ; 
+    s4 = constrain( config.offset4 + config.hoverOffset + tau_yaw + tau_pitch + tau_roll, 0, 2000 ) ; 
+    s1 = constrain( config.offset1 + config.hoverOffset - tau_yaw - tau_pitch + tau_roll, 0, 2000 ) ; 
+    s2 = constrain( config.offset2 + config.hoverOffset + tau_yaw - tau_pitch - tau_roll, 0, 2000 ) ; 
+  }else{
+    s1 = 0;
+    s2 = 0;
+    s3 = 0;
+    s4 = 0;  
+  }
 
-  // Speeds 3, 4, 1, 2 because IMU is turned 90 degress x = y, and y = x
-  s3 = constrain( thrust - yaw_out + tau_pitch - tau_roll, 0, 2000 ) ; 
-  s4 = constrain( thrust + yaw_out + tau_pitch + tau_roll, 0, 2000 ) ; 
-  s1 = constrain( thrust - yaw_out - tau_pitch + tau_roll, 0, 2000 ) ; 
-  s2 = constrain( thrust + yaw_out - tau_pitch - tau_roll, 0, 2000 ) ; 
+}
 
+void Stabilizer::setHome(){
+  yawRef = angles[0];  
+  
+  Serial.print("Yaw REF: ");
+  Serial.println(yawRef);
 }

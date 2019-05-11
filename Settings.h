@@ -24,6 +24,17 @@ public:
 	float rollKi = 0.0;
 	float rollKd = 0.0;
 
+	float altKp = 0.0;
+	float altKi = 0.0;
+	float altKd = 0.0;
+
+	// int16_t speedOff1 = 8, speedOff2 = 0, speedOff3 = 9, speedOff4 = 3;
+	int16_t offset1 = 0;
+	int16_t offset2 = 0;
+	int16_t offset3 = 0;
+	int16_t offset4 = 0;
+
+	int16_t hoverOffset = 0;
 
 public:
 	/* Settings functions */
@@ -37,6 +48,8 @@ public:
 	void load( void );
 
 	void save( void );
+
+  float yawRef = 0.0;
 
 };
 

@@ -48,38 +48,46 @@
 
 class DShot
 {
-	public:
+public:
 
-		DShot( uint8_t num );
+	struct Telemetry{
+		float temp; 
+		float voltage;
+		float amps;
+		float ampHours;
+		float rpm;
+	} tlm;
 
-		void setup( uint8_t num );
+	DShot( uint8_t num );
 
-		void setThrottle( uint16_t value);
+	void setup( uint8_t num );
+
+	void setThrottle( uint16_t value);
 
     void setDirection( bool dir );
     void setNormal();
 
-    void beep( uint8_t value );
+	void requestTelemetry( void );
 
-		void requestTelemetry( void );
-
-    void setTlmPort( Stream * port );
+	bool readTelemetry( Stream * tlmPort );
 		
-	private:
+private:
 
-		DMAChannel dma;
-		uint8_t dshotBuffer[DSHOT_BUFFER_LENGTH];
-		uint32_t mod = (F_BUS + DSHOT_CLOCK / 2) / DSHOT_CLOCK;
-    uint32_t trig = 254;
-		bool requestTlm = false;
+	DMAChannel dma;
+	uint8_t dshotBuffer[DSHOT_BUFFER_LENGTH];
+	uint32_t mod = (F_BUS + DSHOT_CLOCK / 2) / DSHOT_CLOCK;
+	uint32_t trig = 254;
+	bool requestTlm = false;
 
-		uint8_t getChecksum(uint16_t value);
+	uint8_t getChecksum(uint16_t value);
 
-		void fillBuffer( uint16_t value);
+	void fillBuffer( uint16_t value);
 
-		void write( uint16_t value);
+	void write( uint16_t value);
 
-    Stream * tlmPort = NULL;
+	// Telemetry CRC
+	uint8_t update_crc8(uint8_t crc, uint8_t crcSeed);
+	uint8_t get_crc8(uint8_t * buf, uint8_t bufLen);
 
 };
 
