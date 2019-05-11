@@ -32,23 +32,33 @@ class Wireless {
 
 public: 
 
-	void begin( void );
+	void setup( void );
 
 	// Listen for incoming data
-	void listen( void );
+	bool listen( void );
 
 	// Send serial data
-	void send( char * data );
+	void sendBuffer( void );
 
 	// Send entire telemetry package
 	void sendTelemetry( void  );
+
+	bool check( char * name );
+
+	bool value( char * name, double * var );
+	bool value( char * name, int * var );
+
+	bool addToBuffer( double value );
+	bool addToBuffer( int value );
+	bool addToBuffer( char * value );
 
 
 private:
 
 	bool isConnected = false;
 
-	char buffer[200] = { '\0' };
+	char buffer[200] = {'\0'};
+	char params[200] = {'\0'};
 
 
 };

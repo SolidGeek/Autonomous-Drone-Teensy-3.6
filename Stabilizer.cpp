@@ -17,40 +17,75 @@ Stabilizer::Stabilizer(){
 
 void Stabilizer::setup() {
 
-	// Join I2C bus at 400kHz
+	// Load config from EEPROM
+	config.load();
 
+	// Begin I2C bus at 400kHz
 	Wire.begin();
 	Wire.setClock(400000);
 
-  config.load();
+	// Begin UART communication for ESC telemetry
+	TLM1.begin(115200);
+	TLM2.begin(115200);
+	TLM3.begin(115200);
+	TLM4.begin(115200);
 
-  Yaw.setConstants( config.yawKp, config.yawKi, config.yawKd );
-  Roll.setConstants( config.rollKp, config.rollKi, config.rollKd );
-  Pitch.setConstants( config.pitchKp, config.pitchKi, config.pitchKd );
+	// Setup of motor directions
+	ESC1.setDirection(false);
+	ESC2.setDirection(true);
+	ESC3.setDirection(false);
+	ESC4.setDirection(true);
 
+	// Init IMU for angle measurement
+	initIMU();
+
+	// Init TOF for height measurement
+	initTOF();
+
+	// Load PID parameters from config into controllers
+	Yaw.setConstants( config.yawKp, config.yawKi, config.yawKd );
+	Roll.setConstants( config.rollKp, config.rollKi, config.rollKd );
+	Pitch.setConstants( config.pitchKp, config.pitchKi, config.pitchKd );
+
+}
+
+void Stabilizer::initTOF( void ){
+
+	TOF.setTimeout(500);
+
+	if (!TOF.init()){
+		#ifdef _DEBUG
+			Serial.println("No altitude sensor");
+		#endif
+	}
+
+	TOF.setDistanceMode(VL53L1X::Long);
+	TOF.setMeasurementTimingBudget(50000); // 50000 us (50 ms) 
+
+	// Start continuous readings at a rate of one measurement every 50 ms
+	TOF.startContinuous(50);
+}
+
+void Stabilizer::initIMU(){
 	// Initialize the IMU with stardard parameters for calibration
-
 	IMU.setClockSource(MPU6050_CLOCK_PLL_XGYRO);
 	IMU.setFullScaleGyroRange(MPU6050_GYRO_FS_250);
 	IMU.setFullScaleAccelRange(MPU6050_ACCEL_FS_2);
 	IMU.setSleepEnabled(false); // thanks to Jack Elston for pointing this one out!
 
 	// this->calibrateIMU();
-
 	// Now initiate with needed settings for DMP
 	IMU.initialize();
 
 	this->dmpStatus = IMU.dmpInitialize();
 
-	// Set found offsets again
-	// this->setIMUOffsets();
-
-  IMU.setXAccelOffset(930);
-  IMU.setYAccelOffset(-1658);
-  IMU.setZAccelOffset(972);
-  IMU.setXGyroOffset(103);
-  IMU.setYGyroOffset(6);
-  IMU.setZGyroOffset(29);
+	// Load IMU offsets found using calibrateIMU()
+	IMU.setXAccelOffset(930);
+	IMU.setYAccelOffset(-1658);
+	IMU.setZAccelOffset(972);
+	IMU.setXGyroOffset(103);
+	IMU.setYGyroOffset(6);
+	IMU.setZGyroOffset(29);
 
 	// Check if
 	if ( this->dmpStatus == 0) {
@@ -77,7 +112,6 @@ void Stabilizer::setup() {
 			Serial.println( ")" );
 		#endif
 	}
-
 }
 
 bool Stabilizer::readDMPAngles() {
@@ -237,61 +271,122 @@ void Stabilizer::setIMUOffsets( void ) {
 	IMU.setZGyroOffset(gz_offset);
 }
 
-// Should be run everytime new data from sensors is ready
+// Should be run everytime new data from sensors is ready to calculate motor speeds
 void Stabilizer::motorMixing( ){
 
-  readDMPAngles();
+	// Read angles from DMP (digital motion processor)
+	readDMPAngles();
 
-  // Calculate yaw angle according to drones reference frame (0 = startup angle)
-  float alpha_real = angles[0];
-  float alpha_ref = yawRef;
-  float droneYaw = alpha_real - alpha_ref;
-  float alpha_drone = 0.0;
-  
-  if( droneYaw > 180.0 ){
-    alpha_drone = droneYaw - 360.0;
-  }
-  else if( droneYaw < -180.0 ){
-    alpha_drone = droneYaw + 360.0;
-  }
-  else
-    alpha_drone = droneYaw; 
+	// Read altitude from TOF sensor
+	readAltitude();
 
-  // Outer controller loops
+	// Calculate yaw angle according to drones reference frame (0 = startup angle)
+	float alpha_real = angles[0];
+	float alpha_ref = yawRef;
+	float droneYaw = alpha_real - alpha_ref;
+	float alpha_drone = 0.0;
+
+	if( droneYaw > 180.0 ){
+		alpha_drone = droneYaw - 360.0;
+	}
+	else if( droneYaw < -180.0 ){
+		alpha_drone = droneYaw + 360.0;
+	}
+	else
+		alpha_drone = droneYaw; 
+
+	// Outer controller loops
 	Yaw.run( yawSetpoint, alpha_drone );
-	Roll.run( 0, angles[1] );
-	Pitch.run( 0, angles[2] );
+	Roll.run( rollSetpoint, angles[1] );
+	Pitch.run( pitchSetpoint, angles[2] );
 
-  float yaw_out = Yaw.getOutput();
-  float roll_out = Roll.getOutput();
-  float pitch_out = Pitch.getOutput();
+	// Output from outer controllers
+	float yaw_out = Yaw.getOutput();
+	float roll_out = Roll.getOutput();
+	float pitch_out = Pitch.getOutput();
 
-  YawSpeed.run( yaw_out, gyro[2] );
-  RollSpeed.run( roll_out, -gyro[1] );
-  PitchSpeed.run( pitch_out, gyro[0] );
-  
-  int16_t tau_roll = (int16_t)RollSpeed.getOutput();
+	// Inner controller loops
+	YawSpeed.run( yaw_out, gyro[2] );
+	RollSpeed.run( roll_out, -gyro[1] );
+	PitchSpeed.run( pitch_out, gyro[0] );
+
+	// Output from inner controllers
+	int16_t tau_roll = (int16_t)RollSpeed.getOutput();
 	int16_t tau_pitch = (int16_t)PitchSpeed.getOutput();
-  int16_t tau_yaw = (int16_t)YawSpeed.getOutput();
-  
-  if( motorsOn == true ){
-    // Speeds 3, 4, 1, 2 because IMU is turned 90 degress x = y, and y = x
-    s3 = constrain( config.offset3 + config.hoverOffset - tau_yaw + tau_pitch - tau_roll, 0, 2000 ) ; 
-    s4 = constrain( config.offset4 + config.hoverOffset + tau_yaw + tau_pitch + tau_roll, 0, 2000 ) ; 
-    s1 = constrain( config.offset1 + config.hoverOffset - tau_yaw - tau_pitch + tau_roll, 0, 2000 ) ; 
-    s2 = constrain( config.offset2 + config.hoverOffset + tau_yaw - tau_pitch - tau_roll, 0, 2000 ) ; 
-  }else{
-    s1 = 0;
-    s2 = 0;
-    s3 = 0;
-    s4 = 0;  
-  }
+	int16_t tau_yaw = (int16_t)YawSpeed.getOutput();
+
+	// Speeds 3, 4, 1, 2 because IMU is turned 90 degress x = y, and y = x
+	s3 = constrain( config.offset3 + config.hoverOffset - tau_yaw + tau_pitch - tau_roll, 0, 2000 ) ; 
+	s4 = constrain( config.offset4 + config.hoverOffset + tau_yaw + tau_pitch + tau_roll, 0, 2000 ) ; 
+	s1 = constrain( config.offset1 + config.hoverOffset - tau_yaw - tau_pitch + tau_roll, 0, 2000 ) ; 
+	s2 = constrain( config.offset2 + config.hoverOffset + tau_yaw - tau_pitch - tau_roll, 0, 2000 ) ; 
+
+}
+
+void Stabilizer::setMotorSpeeds( void ){
+
+	if( motorsOn == true ){
+
+		ESC1.setThrottle( s1 );
+		ESC2.setThrottle( s2 );
+		ESC3.setThrottle( s3 );
+		ESC4.setThrottle( s4 );
+
+	}else{
+
+		// Send zero throttle
+		stopMotors();
+
+	}
+
+}
+
+void Stabilizer::stopMotors( void ){
+	ESC1.setThrottle( 0 );
+	ESC2.setThrottle( 0 );
+	ESC3.setThrottle( 0 );
+	ESC4.setThrottle( 0 );
+}
+
+void Stabilizer::armMotors( void ){
+
+	// Send 0 value for 1 second
+	for( int i = 0; i < 500; i++ ){
+		stopMotors();
+		delayMicroseconds(2000);
+	}
+
+}
+
+void Stabilizer::readAltitude( void ){
+
+	if( TOF.dataReady() ){
+		altitude = TOF.read();
+	}
+
+}
+
+void Stabilizer::getTelemetry( void ){
+
+	// Only request telemetry once in a while
+	if( millis() - lastTlm > DSHOT_TLM_INTERVAL ){
+
+		lastTlm = millis();
+		ESC1.requestTelemetry(); 
+		ESC2.requestTelemetry(); 
+		ESC3.requestTelemetry(); 
+		ESC4.requestTelemetry();
+
+	}
+
+	// Read telemetry as soon as possible
+	ESC1.readTelemetry( &TLM1 );
+	ESC2.readTelemetry( &TLM2 );
+	ESC3.readTelemetry( &TLM3 );
+	ESC4.readTelemetry( &TLM4 );
 
 }
 
 void Stabilizer::setHome(){
-  yawRef = angles[0];  
-  
-  Serial.print("Yaw REF: ");
-  Serial.println(yawRef);
+	yawRef = angles[0];  
 }

@@ -5,11 +5,14 @@
 #define MPU6050_INCLUDE_DMP_MOTIONAPPS20  // Needed to pre-declare the DMP functions
 #include "helper_3dmath.h"                // Needed to use the Quaternion and VectorFloat data types
 #include <MPU6050.h> // IMU library
+#include "DSHOT.h"
 #include "Settings.h"
 #include "Controller.h"
 #include <VL53L1X.h> // Height sensor library
 
 #define _DEBUG
+
+#define DSHOT_TLM_INTERVAL 100
 
 /* Stabilizer class */
 
@@ -20,9 +23,10 @@ public:
 
 	Settings config;
 
-	float angles[3]; // Yaw, roll, pitch
-	int16_t gyro[3]; // X, Y, Z
-	int16_t accel[3]; // X, Y, Z
+	float angles[3] = {0}; // Yaw, roll, pitch
+	int16_t gyro[3] = {0}; // X, Y, Z
+	int16_t accel[3] = {0}; // X, Y, Z
+	uint16_t altitude = 0;
 
 	Stabilizer( void );
 
@@ -31,7 +35,18 @@ public:
 	void calibrateIMU( void );	
 	bool readDMPAngles( void );
 
+	void readAltitude( void );
+
 	void motorMixing( void ); 
+
+	// When ever telemetry is wanted from all motors, loop this for a while (main loop)
+	void getTelemetry( void );
+
+	void setMotorSpeeds( void );
+
+	void stopMotors( void );
+
+	void armMotors( void );
 
 	void setHome( void );
 
@@ -45,17 +60,27 @@ public:
 
 private:
 
-	// Altitude sensor object
-	VL53L1X altitude;
+	// Altitude sensor object (TOF)
+	VL53L1X TOF;
 
-	// Attitude sensor object
+	// Attitude sensor object (IMU)
 	MPU6050 IMU;
+
+	// Motor objects
+	DShot ESC1(1);
+	DShot ESC2(2);
+	DShot ESC3(3);
+	DShot ESC4(4);
 
 	// Yaw home
 	float yawRef = 0.0;
 
 	// Yaw setpoint (for controlling front of drone)
 	float yawSetpoint = 0.0;
+
+	// Roll and pitch setpoints for controlling position movement
+	float rollSetpoint = 0.0;
+	float pitchSetpoint = 0.0;
 	
 
 	// Inner loop controllers 
@@ -84,6 +109,13 @@ private:
 
 	// IMU offsets found by calibration
 	int16_t ax_offset = 0, ay_offset = 0, az_offset = 0, gx_offset = 0, gy_offset = 0, gz_offset = 0;
+
+
+	uint32_t lastTlm = 0;
+
+	void initIMU( void );
+
+	void initTOF( void );
 
 	void setIMUOffsets( void );
 
