@@ -2,7 +2,7 @@
 #include "Settings.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "Stabilizer.h"
-#include "Wireless."
+#include "Wireless.h"
 
 // Initialise Flight Controller (FC)
 Stabilizer FC;
@@ -19,10 +19,9 @@ uint8_t IMUPin = 2;
 uint32_t lastAlive = 0;
 
 // Variables to be used by interrupts
-volatile uint32_t lastDShot = 0;
-volatile uint16_t countDmp = 0;
-volatile bool newDmpData = false;
-
+volatile uint32_t lastDShot = 0;	// Last time DShot was fired. Used to time other tasks
+volatile uint16_t countDmp = 0; 	// Number of received DMP interrupts. Used to determine when the DMP is stabilized
+volatile bool newDmpData = false;	// True if new data from DMP hasn't been read yet.
 
 void setup() {
 
@@ -59,20 +58,24 @@ void setup() {
 
 void loop() {
 
-	if( millis() - lastAlive < 500 ) {
+	// Turn motors off if last packet was received to long ago
+	if( millis() - lastAlive < 1000 ) {
 		FC.motorsOn = false;
 	}
 
-	// New angle is ready, and there is at least 2900us to next dShot 
+	// New angle is ready, and there is at least 2900us to next DShot pulse
+	// We would like to do our MMA calculations within a "free" periode, such that the interrupt doesn't interfere with the MMA
 	if( newDmpData && (micros()- lastDShot <= 100) ) {
 
 		// Calculate the new motor speeds from the newest Eulor angles
 		FC.motorMixing();
-
 		newDmpData = false;
+
+		// Send telemetry over WiFi to GUI (100 Hz)
+		sendTelemetry();
 	} 
 
-	// If command was received from interface
+	// Listen for commands from WiFi
 	if( CC.listen() ){
 
 		// Process command
@@ -80,6 +83,7 @@ void loop() {
 
 	}
 
+	// Read ESC telemetry
 	FC.getTelemetry();
 
 }
@@ -130,7 +134,7 @@ void commandList(){
 
 	}
 
-	if( strstr( buffer, "PITCH" ) != NULL ){
+	if( CC.check( "PITCH" ) ){
 		
 		// Save the PID parameters in config
 		CC.value( "P", &FC.config.pitchKp );
@@ -142,7 +146,7 @@ void commandList(){
 		
 	}
 
-	if( strstr( buffer, "YAW" ) != NULL ){
+	if( CC.check( "YAW" ) ){
 		
 		// Save the PID parameters in config
 		CC.value( "P", &FC.config.yawKp );
@@ -154,7 +158,7 @@ void commandList(){
 		
 	}
 
-	if( strstr( buffer, "OFFSET" ) != NULL ){
+	if( CC.check( "OFFSET" ) ){
 		
 		CC.value( "H", &FC.config.hoverOffset );
 		CC.value( "A", &FC.config.offset1 );
@@ -163,7 +167,6 @@ void commandList(){
 		CC.value( "D", &FC.config.offset4 );
 		
 	}
-
 
 }
 
@@ -174,31 +177,31 @@ void sendConfig() {
 	CC.addToBuffer("CONFIG");
 
 	// Add roll config
-	CC.addToBuffer( "P" ); CC.addToBuffer( FC.config.rollKp );
-	CC.addToBuffer( "I" ); CC.addToBuffer( FC.config.rollKi );
-	CC.addToBuffer( "D" ); CC.addToBuffer( FC.config.rollKd );
+	CC.addToBuffer( FC.config.rollKp );
+	CC.addToBuffer( FC.config.rollKi );
+	CC.addToBuffer( FC.config.rollKd );
 
 	// Add pitch config
-	CC.addToBuffer( "P" ); CC.addToBuffer( FC.config.pitchKp );
-	CC.addToBuffer( "I" ); CC.addToBuffer( FC.config.pitchKi );
-	CC.addToBuffer( "D" ); CC.addToBuffer( FC.config.pitchKd );
+	CC.addToBuffer( FC.config.pitchKp );
+	CC.addToBuffer( FC.config.pitchKi );
+	CC.addToBuffer( FC.config.pitchKd );
 	
 	// Add yaw config
-	CC.addToBuffer( "P" ); CC.addToBuffer( FC.config.yawKp );
-	CC.addToBuffer( "I" ); CC.addToBuffer( FC.config.yawKi );
-	CC.addToBuffer( "D" ); CC.addToBuffer( FC.config.yawKd );
+	CC.addToBuffer( FC.config.yawKp );
+	CC.addToBuffer( FC.config.yawKi );
+	CC.addToBuffer( FC.config.yawKd );
 
 	// Add altitude config
-	CC.addToBuffer( "P" ); CC.addToBuffer( FC.config.altKp );
-	CC.addToBuffer( "I" ); CC.addToBuffer( FC.config.altKi );
-	CC.addToBuffer( "D" ); CC.addToBuffer( FC.config.altKd );
+	CC.addToBuffer( FC.config.altKp );
+	CC.addToBuffer( FC.config.altKi );
+	CC.addToBuffer( FC.config.altKd );
 
 	// Add also motor offsets
-	CC.addToBuffer( "H" ); CC.addToBuffer( FC.config.hoverOffset );
-	CC.addToBuffer( "A" ); CC.addToBuffer( FC.config.offset1 );
-	CC.addToBuffer( "B" ); CC.addToBuffer( FC.config.offset2 );
-	CC.addToBuffer( "C" ); CC.addToBuffer( FC.config.offset3 );
-	CC.addToBuffer( "D" ); CC.addToBuffer( FC.config.offset4 );
+	CC.addToBuffer( FC.config.hoverOffset );
+	CC.addToBuffer( FC.config.offset1 );
+	CC.addToBuffer( FC.config.offset2 );
+	CC.addToBuffer( FC.config.offset3 );
+	CC.addToBuffer( FC.config.offset4 );
 
 	// Send everything
 	CC.sendBuffer();
@@ -206,85 +209,29 @@ void sendConfig() {
 }
 
 
-void sendTelemetry( const char * type ){
+void sendTelemetry( ){
 
-	char tempBuffer[20] = {'\0'};
-	memset(buffer, 0, sizeof(buffer));
-	
-	if( strcmp( type, "ANGLE" ) == 0 ) {
-		
-		strcpy(buffer, type);
-	
-		// Build telemetry buffer
-		sprintf(tempBuffer, "%.2f", FC.angles[0]);
-		strcat(buffer, " Y");
-		strcat(buffer, tempBuffer);
-	
-		sprintf(tempBuffer, "%.2f", FC.angles[2]);
-		strcat(buffer, " P");
-		strcat(buffer, tempBuffer);
-		
-		sprintf(tempBuffer, "%.2f", FC.angles[1]);
-		strcat(buffer, " R");
-		strcat(buffer, tempBuffer);
-	
-		WIFI.println(buffer);
-	}
-	
-	else if( strcmp( type, "ALTITUDE" ) == 0 ) {
-		
-		strcpy(buffer, type);
-	
-		sprintf(tempBuffer, "%d", altitudeVal);
-		strcat(buffer, " A");
-		strcat(buffer, tempBuffer);
-	
-		WIFI.println(buffer);
-	}
+	CC.clearBuffer();
 
-	else if( strcmp( type, "BATTERY" ) == 0 ) {
+	CC.addToBuffer("TELEMETRY");
 
-		// Find voltage of battery from average
+	// Add roll, pitch and yaw
+	CC.addToBuffer( FC.angles[1] ); // Roll
+	CC.addToBuffer( FC.angles[2] ); // Pitch
+	CC.addToBuffer( FC.angles[0] ); // Yaw
 
-		float voltage = 0.0;
-
-		/* for( uint8_t i = 0; i < 4; i++ ){
-			voltage += telemetry[i].voltage; 
-		}
-
-		voltage = voltage/4.0;*/
-		
-		strcpy(buffer, type);
+	// Add altitude
+	CC.addToBuffer( FC.altitude );
 	
-		sprintf(tempBuffer, "%.2f", voltage);
-		strcat(buffer, " V");
-		strcat(buffer, tempBuffer);
-	
-		WIFI.println(buffer);
+	// Add battery voltage
+	CC.addToBuffer( FC.batteryVoltage() );
 
-	}
+	// Add motor outputs for inspection
+	CC.addToBuffer( FC.s1 );
+	CC.addToBuffer( FC.s2 );
+	CC.addToBuffer( FC.s3 );
+	CC.addToBuffer( FC.s4 );
 
-	else if( strcmp( type, "SPEED" ) == 0 ) {
-	
-		strcpy(buffer, type);
-	
-		// Build telemetry buffer
-		sprintf(tempBuffer, "%d", FC.s1);
-		strcat(buffer, " A");
-		strcat(buffer, tempBuffer);
-	
-		sprintf(tempBuffer, "%d", FC.s2);
-		strcat(buffer, " B");
-		strcat(buffer, tempBuffer);
-		
-		sprintf(tempBuffer, "%d", FC.s3);
-		strcat(buffer, " C");
-		strcat(buffer, tempBuffer);
+	CC.sendBuffer();
 
-		sprintf(tempBuffer, "%d", FC.s4);
-		strcat(buffer, " D");
-		strcat(buffer, tempBuffer);
-	
-		WIFI.println(buffer);
-	}
 } 

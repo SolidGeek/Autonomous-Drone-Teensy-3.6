@@ -56,6 +56,7 @@ public:
 		float amps;
 		float ampHours;
 		float rpm;
+		uint32_t timestamp;
 	} tlm;
 
 	DShot( uint8_t num );

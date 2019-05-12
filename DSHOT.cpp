@@ -228,16 +228,17 @@ bool DShot::readTelemetry( Stream * tlmPort ){
       	if(valid == buf[9]){
 
       		// Telemetry success, CRC was valid 
-			tlm.temp       = (float)(buf[0]);
-			tlm.voltage    = (float)((buf[1]<<8)|buf[2]) / 100.0;
-			tlm.amps       = (float)((buf[3]<<8)|buf[4]) / 100.0;
-			tlm.ampHours   = (float)((buf[5]<<8)|buf[6]);
-			tlm.rpm        = (float)((buf[7]<<8)|buf[8]) * 100.0 / 7.0; 
-        return true;
+			tlm.temp       	= (float)(buf[0]);
+			tlm.voltage    	= (float)((buf[1]<<8)|buf[2]) / 100.0;
+			tlm.amps       	= (float)((buf[3]<<8)|buf[4]) / 100.0;
+			tlm.ampHours   	= (float)((buf[5]<<8)|buf[6]);
+			tlm.rpm        	= (float)((buf[7]<<8)|buf[8]) * 100.0 / 7.0; 
+			tlm.timestamp 	= millis();
+        	return true;
       	}
 
 	}
-  return false;
+  	return false;
 }
 
 // Used to check integrity of telemetry 

@@ -27,18 +27,24 @@ void Wireless::send( char * data ){
 	WIFIPORT.println( data );
 }
 
+void Wireless::sendBuffer( ){
+  WIFIPORT.println( this->buffer );
+}
+
+
 // Send entire telemetry package
 void Wireless::sendTelemetry( void  ){
 
 
 }
 
-bool Wireless::check( char * name ){
+bool Wireless::check( const char * name ){
 
 	if( strstr( this->buffer, name ) != NULL ){
 
 		// Find the end of the "command" and save this pointer in the params variable for variable extraction
-		this->params = strpbrk(this->buffer, " ");
+    char * end = strpbrk(this->buffer, " ");
+    strcpy( params, end );
 
 		return true;
 
@@ -52,7 +58,7 @@ void Wireless::clearBuffer( void ){
 	memset(buffer, 0, sizeof(buffer));
 }
 
-bool Wireless::value( char * name, int * var ){
+bool Wireless::value( const char * name, int * var ){
 
 	double temp;
 
@@ -68,7 +74,7 @@ bool Wireless::value( char * name, int * var ){
 }
 
 // Get value from received string
-bool Wireless::value( char * name, double * var ){
+bool Wireless::value( const char * name, double * var ){
 
 	char * start;
 	char * end;
@@ -99,5 +105,33 @@ bool Wireless::value( char * name, double * var ){
 	}
 
 	return false;
+
+}
+
+void Wireless::addToBuffer( double value ){
+	
+	char tempBuffer[20] = {'\0'};
+
+	sprintf(tempBuffer, "%.2f", value );
+	strcat(buffer, tempBuffer);  
+	strcat(buffer, " ");
+
+}
+
+void Wireless::addToBuffer( int value ){
+	
+	char tempBuffer[20] = {'\0'};
+
+	sprintf(tempBuffer, "%d", value );
+	strcat(buffer, tempBuffer);  
+	strcat(buffer, " ");
+
+}
+
+
+void Wireless::addToBuffer( const char * value ){
+	
+	strcat(buffer, value);  
+	strcat(buffer, " ");
 
 }

@@ -5,31 +5,7 @@
 
 #define WIFIPORT Serial6
 
-
-typedef struct {
-
-	int16_t ax, ay, az;
-	int16_t gx, gy, gz;
-
-	float roll, pitch, yaw, altitude;
-
-	float rError, rAccum, rDeriv;
-	float pError, pAccum, pDeriv;
-	float yError, yAccum, yDeriv;
-	float aError, aAccum, aDeriv;
-
-	float voltage;
-
-	// Speeds
-	uint16_t s1, s2, s3, s4;
-
-} Telemetry;
-
-
-
 class Wireless {
-
-
 public: 
 
 	void setup( void );
@@ -39,18 +15,21 @@ public:
 
 	// Send serial data
 	void sendBuffer( void );
+  void send( char * data );
 
 	// Send entire telemetry package
 	void sendTelemetry( void  );
 
-	bool check( char * name );
+	bool check( const char * name );
 
-	bool value( char * name, double * var );
-	bool value( char * name, int * var );
+	bool value( const char * name, double * var );
+	bool value( const char * name, int * var );
 
-	bool addToBuffer( double value );
-	bool addToBuffer( int value );
-	bool addToBuffer( char * value );
+  void clearBuffer( void );
+
+	void addToBuffer( double value );
+	void addToBuffer( int value );
+	void addToBuffer( const char * value );
 
 
 private:

@@ -2,6 +2,11 @@
 
 Stabilizer::Stabilizer(){
 
+  ESC1 = new DShot(1);
+  ESC2 = new DShot(2);
+  ESC3 = new DShot(3);
+  ESC4 = new DShot(4);
+  
   /* Inner angular speed controllers */
   PitchSpeed.setConstants(1, 0, 0);
   RollSpeed.setConstants(1, 0, 0);
@@ -31,10 +36,10 @@ void Stabilizer::setup() {
 	TLM4.begin(115200);
 
 	// Setup of motor directions
-	ESC1.setDirection(false);
-	ESC2.setDirection(true);
-	ESC3.setDirection(false);
-	ESC4.setDirection(true);
+	ESC1->setDirection(false);
+	ESC2->setDirection(true);
+	ESC3->setDirection(false);
+	ESC4->setDirection(true);
 
 	// Init IMU for angle measurement
 	initIMU();
@@ -327,10 +332,10 @@ void Stabilizer::setMotorSpeeds( void ){
 
 	if( motorsOn == true ){
 
-		ESC1.setThrottle( s1 );
-		ESC2.setThrottle( s2 );
-		ESC3.setThrottle( s3 );
-		ESC4.setThrottle( s4 );
+		ESC1->setThrottle( s1 );
+		ESC2->setThrottle( s2 );
+		ESC3->setThrottle( s3 );
+		ESC4->setThrottle( s4 );
 
 	}else{
 
@@ -342,10 +347,10 @@ void Stabilizer::setMotorSpeeds( void ){
 }
 
 void Stabilizer::stopMotors( void ){
-	ESC1.setThrottle( 0 );
-	ESC2.setThrottle( 0 );
-	ESC3.setThrottle( 0 );
-	ESC4.setThrottle( 0 );
+	ESC1->setThrottle( 0 );
+	ESC2->setThrottle( 0 );
+	ESC3->setThrottle( 0 );
+	ESC4->setThrottle( 0 );
 }
 
 void Stabilizer::armMotors( void ){
@@ -369,24 +374,59 @@ void Stabilizer::readAltitude( void ){
 void Stabilizer::getTelemetry( void ){
 
 	// Only request telemetry once in a while
-	if( millis() - lastTlm > DSHOT_TLM_INTERVAL ){
+	if( millis() - lastTlmReq > DSHOT_TLM_INTERVAL ){
 
-		lastTlm = millis();
-		ESC1.requestTelemetry(); 
-		ESC2.requestTelemetry(); 
-		ESC3.requestTelemetry(); 
-		ESC4.requestTelemetry();
+		lastTlmReq = millis();
+		ESC1->requestTelemetry(); 
+		ESC2->requestTelemetry(); 
+		ESC3->requestTelemetry(); 
+		ESC4->requestTelemetry();
 
 	}
 
 	// Read telemetry as soon as possible
-	ESC1.readTelemetry( &TLM1 );
-	ESC2.readTelemetry( &TLM2 );
-	ESC3.readTelemetry( &TLM3 );
-	ESC4.readTelemetry( &TLM4 );
+	ESC1->readTelemetry( &TLM1 );
+	ESC2->readTelemetry( &TLM2 );
+	ESC3->readTelemetry( &TLM3 );
+	ESC4->readTelemetry( &TLM4 );
 
 }
 
 void Stabilizer::setHome(){
 	yawRef = angles[0];  
+}
+
+
+float Stabilizer::batteryVoltage( void ){
+
+	uint32_t now = millis();
+	float voltage = 0.0;
+	uint8_t count = 0;
+
+	// Check if the telemetry is new or just old readings 
+	if( now - ESC1->tlm.timestamp <= DSHOT_TLM_INTERVAL ){
+		voltage += ESC1->tlm.voltage;
+		count++;
+	}
+
+	if( now - ESC2->tlm.timestamp <= DSHOT_TLM_INTERVAL ){
+		voltage += ESC2->tlm.voltage;
+		count++;
+	}
+
+	if( now - ESC3->tlm.timestamp <= DSHOT_TLM_INTERVAL ){
+		voltage += ESC3->tlm.voltage;
+		count++;
+	}
+
+	if( now - ESC3->tlm.timestamp <= DSHOT_TLM_INTERVAL ){
+		voltage += ESC3->tlm.voltage;
+		count++;
+	}
+
+	if ( voltage != 0.0 ){
+		return voltage / (float)count;
+	}
+	
+	return 0.0;
 }

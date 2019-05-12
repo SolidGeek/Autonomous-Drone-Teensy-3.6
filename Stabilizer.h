@@ -14,6 +14,11 @@
 
 #define DSHOT_TLM_INTERVAL 100
 
+#define TLM1 Serial2
+#define TLM2 Serial3
+#define TLM3 Serial4
+#define TLM4 Serial5
+
 /* Stabilizer class */
 
 class Stabilizer
@@ -50,6 +55,8 @@ public:
 
 	void setHome( void );
 
+	float batteryVoltage( void );
+
 	// Motor speeds 
 	int16_t s1 = 0;
 	int16_t s2 = 0;
@@ -57,6 +64,16 @@ public:
 	int16_t s4 = 0;
 
 	bool motorsOn = false;
+
+  // Inner loop controllers 
+  Controller RollSpeed;
+  Controller PitchSpeed; 
+  Controller YawSpeed;
+
+  // Outer loop controllers
+  Controller Yaw;
+  Controller Roll;
+  Controller Pitch; 
 
 private:
 
@@ -67,10 +84,10 @@ private:
 	MPU6050 IMU;
 
 	// Motor objects
-	DShot ESC1(1);
-	DShot ESC2(2);
-	DShot ESC3(3);
-	DShot ESC4(4);
+	DShot * ESC1;
+	DShot * ESC2;
+	DShot * ESC3;
+	DShot * ESC4;
 
 	// Yaw home
 	float yawRef = 0.0;
@@ -82,18 +99,6 @@ private:
 	float rollSetpoint = 0.0;
 	float pitchSetpoint = 0.0;
 	
-
-	// Inner loop controllers 
-	Controller RollSpeed;
-	Controller PitchSpeed; 
-	Controller YawSpeed;
-
-	// Outer loop controllers
-	Controller Yaw;
-	Controller Roll;
-	Controller Pitch; 
-
-
 	// Variables to calculate Eulor angles (Roll, Pitch & Yaw)
 	Quaternion q; 
 	VectorFloat gravity;   
@@ -110,8 +115,7 @@ private:
 	// IMU offsets found by calibration
 	int16_t ax_offset = 0, ay_offset = 0, az_offset = 0, gx_offset = 0, gy_offset = 0, gz_offset = 0;
 
-
-	uint32_t lastTlm = 0;
+	uint32_t lastTlmReq = 0;
 
 	void initIMU( void );
 
