@@ -22,22 +22,24 @@ public:
 
 	bool check( const char * name );
 
-	bool value( const char * name, double * var );
+	bool value( const char * name, float * var );
 	bool value( const char * name, int * var );
 
   void clearBuffer( void );
 
-	void addToBuffer( double value );
+	void addToBuffer( float value );
 	void addToBuffer( int value );
 	void addToBuffer( const char * value );
 
+  char buffer[200] = {'\0'};
+  char params[200] = {'\0'};
 
 private:
 
 	bool isConnected = false;
 
-	char buffer[200] = {'\0'};
-	char params[200] = {'\0'};
+	
+	
 
 
 };

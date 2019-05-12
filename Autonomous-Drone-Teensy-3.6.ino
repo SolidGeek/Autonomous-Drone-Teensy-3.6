@@ -44,8 +44,8 @@ void setup() {
 	speedTimer.begin(interruptThrottle, 3000); 	
 	speedTimer.priority(0);
 
-	// Makes sure the DMP values have settled (1000 readings)
-	while( countDmp < 1000 ){
+	// Makes sure the DMP values have settled (500 readings)
+	while( countDmp < 500 ){
 		if (newDmpData){
 			FC.readDMPAngles();
 			newDmpData = false;  
@@ -59,7 +59,7 @@ void setup() {
 void loop() {
 
 	// Turn motors off if last packet was received to long ago
-	if( millis() - lastAlive < 1000 ) {
+	if( millis() - lastAlive > 500 ) {
 		FC.motorsOn = false;
 	}
 
@@ -77,10 +77,8 @@ void loop() {
 
 	// Listen for commands from WiFi
 	if( CC.listen() ){
-
 		// Process command
 		commandList();
-
 	}
 
 	// Read ESC telemetry
@@ -107,7 +105,7 @@ void commandList(){
 	}
 
 	else if( CC.check( "ALIVE" ) ){
-		lastAlive = millis();  
+		lastAlive = millis();
 	}
 
 	if( CC.check( "SAVE" ) ){
@@ -115,57 +113,59 @@ void commandList(){
 	}
 
 	if( CC.check( "START" ) ){
+    Serial.println( " -- MOTORS ON -- " );
 		FC.motorsOn = true;
 	}
 
 	if( CC.check( "STOP" ) ){
+    Serial.println( " -- MOTORS OFF -- " );
 		FC.motorsOn = false;
 	}
 
 	if( CC.check( "ROLL" ) ){
 		
 		// Save the PID parameters in config
-		CC.value( "P", &FC.config.rollKp );
-		CC.value( "I", &FC.config.rollKi );
-		CC.value( "D", &FC.config.rollKd );
+		CC.value( "P", &FC.config.rollPID[0] );
+		CC.value( "I", &FC.config.rollPID[1] );
+		CC.value( "D", &FC.config.rollPID[2] );
 
 		// And load them into the controller
-		FC.Roll.setConstants( FC.config.rollKp, FC.config.rollKi, FC.config.rollKd );	
+		FC.Roll.setConstants( FC.config.rollPID );	
 
 	}
 
 	if( CC.check( "PITCH" ) ){
-		
+    
 		// Save the PID parameters in config
-		CC.value( "P", &FC.config.pitchKp );
-		CC.value( "I", &FC.config.pitchKi );
-		CC.value( "D", &FC.config.pitchKd );
+		CC.value( "P", &FC.config.pitchPID[0] );
+		CC.value( "I", &FC.config.pitchPID[1] );
+		CC.value( "D", &FC.config.pitchPID[2] );
 
 		// And load them into the controller
-		FC.Pitch.setConstants( FC.config.pitchKp, FC.config.pitchKi, FC.config.pitchKd );	
+		FC.Pitch.setConstants( FC.config.pitchPID );	
 		
 	}
 
 	if( CC.check( "YAW" ) ){
 		
 		// Save the PID parameters in config
-		CC.value( "P", &FC.config.yawKp );
-		CC.value( "I", &FC.config.yawKi );
-		CC.value( "D", &FC.config.yawKd );
+		CC.value( "P", &FC.config.yawPID[0] );
+		CC.value( "I", &FC.config.yawPID[1] );
+		CC.value( "D", &FC.config.yawPID[2] );
 
 		// And load them into the controller
-		FC.Yaw.setConstants( FC.config.yawKp, FC.config.yawKi, FC.config.yawKd );	
+		FC.Yaw.setConstants( FC.config.yawPID );	
 		
 	}
 
 	if( CC.check( "OFFSET" ) ){
 		
 		CC.value( "H", &FC.config.hoverOffset );
-		CC.value( "A", &FC.config.offset1 );
-		CC.value( "B", &FC.config.offset2 );
-		CC.value( "C", &FC.config.offset3 );
-		CC.value( "D", &FC.config.offset4 );
-		
+		CC.value( "A", &FC.config.motorOffset[0] );
+		CC.value( "B", &FC.config.motorOffset[1] );
+		CC.value( "C", &FC.config.motorOffset[2] );
+		CC.value( "D", &FC.config.motorOffset[3] );
+	
 	}
 
 }
@@ -177,31 +177,31 @@ void sendConfig() {
 	CC.addToBuffer("CONFIG");
 
 	// Add roll config
-	CC.addToBuffer( FC.config.rollKp );
-	CC.addToBuffer( FC.config.rollKi );
-	CC.addToBuffer( FC.config.rollKd );
+	CC.addToBuffer( FC.config.rollPID[0] );
+	CC.addToBuffer( FC.config.rollPID[1] );
+	CC.addToBuffer( FC.config.rollPID[2] );
 
 	// Add pitch config
-	CC.addToBuffer( FC.config.pitchKp );
-	CC.addToBuffer( FC.config.pitchKi );
-	CC.addToBuffer( FC.config.pitchKd );
+	CC.addToBuffer( FC.config.pitchPID[0] );
+	CC.addToBuffer( FC.config.pitchPID[1] );
+	CC.addToBuffer( FC.config.pitchPID[2] );
 	
 	// Add yaw config
-	CC.addToBuffer( FC.config.yawKp );
-	CC.addToBuffer( FC.config.yawKi );
-	CC.addToBuffer( FC.config.yawKd );
+	CC.addToBuffer( FC.config.yawPID[0] );
+	CC.addToBuffer( FC.config.yawPID[1] );
+	CC.addToBuffer( FC.config.yawPID[2] );
 
 	// Add altitude config
-	CC.addToBuffer( FC.config.altKp );
-	CC.addToBuffer( FC.config.altKi );
-	CC.addToBuffer( FC.config.altKd );
+	CC.addToBuffer( FC.config.altPID[0] );
+	CC.addToBuffer( FC.config.altPID[1] );
+	CC.addToBuffer( FC.config.altPID[2] );
 
 	// Add also motor offsets
 	CC.addToBuffer( FC.config.hoverOffset );
-	CC.addToBuffer( FC.config.offset1 );
-	CC.addToBuffer( FC.config.offset2 );
-	CC.addToBuffer( FC.config.offset3 );
-	CC.addToBuffer( FC.config.offset4 );
+	CC.addToBuffer( FC.config.motorOffset[0] );
+	CC.addToBuffer( FC.config.motorOffset[1]  );
+	CC.addToBuffer( FC.config.motorOffset[2]  );
+	CC.addToBuffer( FC.config.motorOffset[3]  );
 
 	// Send everything
 	CC.sendBuffer();

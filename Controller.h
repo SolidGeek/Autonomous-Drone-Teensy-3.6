@@ -14,6 +14,7 @@ public:
 	float getOutput( void);
 
 	void setConstants( float p, float i, float d );
+  void setConstants( float * params );
 	void setMaxIntegral( float value );
 	void setMaxOutput( float value );
 

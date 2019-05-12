@@ -6,7 +6,7 @@ Controller::Controller( void ){
 
 Controller::Controller( float Kp, float Ki, float Kd){
 
-    this->reset();
+  this->reset();
 
 	this->Kp = Kp;
 	this->Ki = Ki;
@@ -59,6 +59,12 @@ void Controller::setConstants( float p, float i, float d ){
 	this->Kp = p;
 	this->Ki = i;
 	this->Kd = d;
+}
+
+void Controller::setConstants( float * params ){
+  this->Kp = params[0];
+  this->Ki = params[1];
+  this->Kd = params[2];
 }
 
 void Controller::setMaxIntegral( float value ){

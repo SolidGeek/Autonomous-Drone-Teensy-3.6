@@ -49,6 +49,8 @@ public:
 
 	void setMotorSpeeds( void );
 
+  void setSameThrottle( uint16_t value );
+  
 	void stopMotors( void );
 
 	void armMotors( void );

@@ -12,11 +12,10 @@ var emergency 	= document.getElementById("emergency");
 var start 		= document.getElementById("start");
 var save 		= document.getElementById("save");
 
-
 var configRead = false;
 
-// Min interval in ms between each command 
-var wsInterval = 100;
+// Interval in ms between each alive message
+var aliveInterval = 100;
 
 
 window.onload = function() {
@@ -46,9 +45,7 @@ window.onload = function() {
 
 		}
 
-	}, 100);
-
-	setTimeout(websocketInterval, wsInterval);
+	}, aliveInterval);
 }
 
 function initWebSocket()
@@ -64,7 +61,7 @@ function initWebSocket()
 	websocket.onopen = function(event) { onWsOpen(event) };
 	websocket.onclose = function(event) { onWsClose(event) };
 	websocket.onmessage = function(event) { onWsMessage(event) };
-
+		
 	window.addEventListener('beforeunload', function() {
 		websocket.close();
 	});
@@ -101,68 +98,37 @@ function onWsMessage(event) {
 
 	var data = event.data;
 
-	if( data.includes("ANGLE") ){
+	if( data.includes("TELEMETRY") ){
 
 		var tlm = [];
 
-		// Read data about position and update current positions
 		var items = data.split(" ");
-		items.shift(); // Remove "ANGLE" from array
+		items.shift(); // Remove "TELEMETRY" from array
+		items.pop(); // Remove empty last element
 
 		for (var i in items) {
-	    	tlm[i] = parseFloat( items[i].substring(1, items[i].length) );
+	    	tlm[i] = parseFloat( items[i] );
 		}
 
-		roll.append(Date.now(), tlm[2]);
+		roll.append(Date.now(), tlm[0]);
 		pitch.append(Date.now(), tlm[1]);
-		// yaw.append(Date.now(), tlm[0]);
+		// yaw.append(Date.now(), tlm[2]);
 
-		document.getElementById('roll_value').value = tlm[2];
+		document.getElementById('roll_value').value = tlm[0];
 		document.getElementById('pitch_value').value = tlm[1];
-		document.getElementById('yaw_value').value = tlm[0];
-	}
+		document.getElementById('yaw_value').value = tlm[2];
 
-	if( data.includes("ALTITUDE") ){
+		altitude.append( Date.now(), tlm[3]);
+		document.getElementById('alt_value').value = tlm[3];
 
-		// Read data about position and update current positions
-		var items = data.split(" ");
-		items.shift(); // Remove "ANGLE" from array
+		document.getElementById('voltage').value = tlm[4] + " V";
 
-		var value = parseFloat( items[0].substring(1, items[0].length) );
+		// Motor outputs
+		document.getElementsByName('motor1')[0].value = tlm[5];
+		document.getElementsByName('motor2')[0].value = tlm[6];
+		document.getElementsByName('motor3')[0].value = tlm[7];
+		document.getElementsByName('motor4')[0].value = tlm[8];
 
-		altitude.append( Date.now(), value);
-		document.getElementById('alt_value').value = value;
-	}
-
-	if( data.includes("BATTERY") ){
-
-		// Read data about position and update current positions
-		var items = data.split(" ");
-		items.shift(); // Remove "ANGLE" from array
-
-		var value = parseFloat( items[0].substring(1, items[0].length) );
-
-		document.getElementById('voltage').value = value
-
-	}
-
-	else if( data.includes("SPEED") ){
-
-		var speeds = [];
-
-		// Read data about position and update current positions
-		var items = data.split(" ");
-
-		items.shift(); // Remove "ANGLE" from array
-
-		for (var i in items) {
-	    	speeds[i] = parseInt( items[i].substring(1, items[i].length) );
-		}
-
-		document.getElementsByName('motor1')[0].value = speeds[0];
-		document.getElementsByName('motor2')[0].value = speeds[1];
-		document.getElementsByName('motor3')[0].value = speeds[2];
-		document.getElementsByName('motor4')[0].value = speeds[3];
 	}
 
 	else if( data.includes("CONFIG") ) {
@@ -171,13 +137,11 @@ function onWsMessage(event) {
 
 		var settings = [];
 
-		// Read data about position and update current positions
 		var items = data.split(" ");
-
-		items.shift(); // Remove "ANGLE" from array
+		items.shift(); // Remove "CONFIG" from array
 
 		for (var i in items) {
-	    	settings[i] = parseFloat( items[i].substring(1, items[i].length) );
+	    	settings[i] = parseFloat( items[i] );
 		}
 
 		document.getElementsByName('roll_p')[0].value = settings[0];
@@ -198,10 +162,12 @@ function onWsMessage(event) {
 
 		document.getElementsByName('hoverOffset')[0].value = settings[12];
 		document.getElementById('hoverOffsetShow').value = settings[12];
+
 		document.getElementsByName('offset1')[0].value = settings[13];
 		document.getElementsByName('offset2')[0].value = settings[14];
 		document.getElementsByName('offset3')[0].value = settings[15];
 		document.getElementsByName('offset4')[0].value = settings[16];
+
 		configRead = true;
 
 	}

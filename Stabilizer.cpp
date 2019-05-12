@@ -35,22 +35,26 @@ void Stabilizer::setup() {
 	TLM3.begin(115200);
 	TLM4.begin(115200);
 
+  // Init IMU for angle measurement
+  initIMU();
+
+  // Init TOF for height measurement
+  initTOF();
+
 	// Setup of motor directions
 	ESC1->setDirection(false);
 	ESC2->setDirection(true);
 	ESC3->setDirection(false);
 	ESC4->setDirection(true);
 
-	// Init IMU for angle measurement
-	initIMU();
+  delay(500);
 
-	// Init TOF for height measurement
-	initTOF();
+  armMotors();
 
 	// Load PID parameters from config into controllers
-	Yaw.setConstants( config.yawKp, config.yawKi, config.yawKd );
-	Roll.setConstants( config.rollKp, config.rollKi, config.rollKd );
-	Pitch.setConstants( config.pitchKp, config.pitchKi, config.pitchKd );
+	Yaw.setConstants( config.yawPID );
+	Roll.setConstants( config.rollPID );
+	Pitch.setConstants( config.pitchPID );
 
 }
 
@@ -143,7 +147,6 @@ bool Stabilizer::readDMPAngles() {
 		// Otherwise, check for DMP data ready interrupt
 	} else if (imuStatus & _BV(MPU6050_INTERRUPT_DMP_INT_BIT)) {
 		// wait for correct available data length, should be a VERY short wait
-		uint32_t test = micros();
 		while (fifoCount < packetSize) fifoCount = IMU.getFIFOCount();
     
 		// read a packet from FIFO
@@ -321,10 +324,10 @@ void Stabilizer::motorMixing( ){
 	int16_t tau_yaw = (int16_t)YawSpeed.getOutput();
 
 	// Speeds 3, 4, 1, 2 because IMU is turned 90 degress x = y, and y = x
-	s3 = constrain( config.offset3 + config.hoverOffset - tau_yaw + tau_pitch - tau_roll, 0, 2000 ) ; 
-	s4 = constrain( config.offset4 + config.hoverOffset + tau_yaw + tau_pitch + tau_roll, 0, 2000 ) ; 
-	s1 = constrain( config.offset1 + config.hoverOffset - tau_yaw - tau_pitch + tau_roll, 0, 2000 ) ; 
-	s2 = constrain( config.offset2 + config.hoverOffset + tau_yaw - tau_pitch - tau_roll, 0, 2000 ) ; 
+	s3 = constrain( config.motorOffset[2] + config.hoverOffset - tau_yaw + tau_pitch - tau_roll, 0, 2000 ) ; 
+	s4 = constrain( config.motorOffset[3] + config.hoverOffset + tau_yaw + tau_pitch + tau_roll, 0, 2000 ) ; 
+	s1 = constrain( config.motorOffset[0] + config.hoverOffset - tau_yaw - tau_pitch + tau_roll, 0, 2000 ) ; 
+	s2 = constrain( config.motorOffset[1] + config.hoverOffset + tau_yaw - tau_pitch - tau_roll, 0, 2000 ) ; 
 
 }
 
@@ -340,10 +343,17 @@ void Stabilizer::setMotorSpeeds( void ){
 	}else{
 
 		// Send zero throttle
-		stopMotors();
+		setSameThrottle(1); // Send a 1 to get telemetry
 
 	}
 
+}
+
+void Stabilizer::setSameThrottle( uint16_t value ){
+  ESC1->setThrottle( value );
+  ESC2->setThrottle( value );
+  ESC3->setThrottle( value );
+  ESC4->setThrottle( value );  
 }
 
 void Stabilizer::stopMotors( void ){
@@ -404,22 +414,22 @@ float Stabilizer::batteryVoltage( void ){
 	uint8_t count = 0;
 
 	// Check if the telemetry is new or just old readings 
-	if( now - ESC1->tlm.timestamp <= DSHOT_TLM_INTERVAL ){
+	if( now - ESC1->tlm.timestamp <= DSHOT_TLM_INTERVAL + 5 ){
 		voltage += ESC1->tlm.voltage;
 		count++;
 	}
 
-	if( now - ESC2->tlm.timestamp <= DSHOT_TLM_INTERVAL ){
+	if( now - ESC2->tlm.timestamp <= DSHOT_TLM_INTERVAL + 5 ){
 		voltage += ESC2->tlm.voltage;
 		count++;
 	}
 
-	if( now - ESC3->tlm.timestamp <= DSHOT_TLM_INTERVAL ){
+	if( now - ESC3->tlm.timestamp <= DSHOT_TLM_INTERVAL + 5 ){
 		voltage += ESC3->tlm.voltage;
 		count++;
 	}
 
-	if( now - ESC3->tlm.timestamp <= DSHOT_TLM_INTERVAL ){
+	if( now - ESC3->tlm.timestamp <= DSHOT_TLM_INTERVAL + 5 ){
 		voltage += ESC3->tlm.voltage;
 		count++;
 	}

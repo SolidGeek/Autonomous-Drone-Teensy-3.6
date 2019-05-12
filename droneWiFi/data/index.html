@@ -19,7 +19,7 @@
 				<span id="status">Status</span>
 			</div>
 			<div>
-				<span><b>Battery: </b> <output class="mr-2" id="voltage" >0.0 V</output></span>
+				<span><b>Battery: </b> <output style="width: 60px" class="mr-2 text-right" id="voltage" >0.0 V</output></span>
 				<button id="start" class="btn btn-primary">Start</button> 
 				<button id="emergency" class="btn btn-danger">Stop</button>
 			</div>
@@ -170,15 +170,17 @@
 				<div class="col-sm-6">
 					<div class="card mb-3">
 						<div class="card-header">
-							Parameters
+							Attitude controller
 						</div>
 						
 						<div class="card-body">
 					
+							<img src="attitude.svg" class="img-svg">
+
 							<table class="table table-sm table-borderless">
 								<thead class="text-center">
 									<tr>
-										<th></th>
+										<th style="width: 100px;"></th>
 										<th>P</th>
 										<th>I</th>
 										<th>D</th>
@@ -211,6 +213,58 @@
 										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_yaw" value="Send"></td>
 									</tr>
 
+									<tr class="border-top">
+										<td>Roll Rate</td>
+										<td><input type="number" name="roll_p" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="roll_i" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="roll_d" class="form-control form-control-sm" value="0"></td>
+										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_roll" value="Send"></td>
+									</tr>
+
+									<tr>
+										<td>Pitch Rate</td>
+										<td><input type="number" name="pitch_p" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="pitch_i" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="pitch_d" class="form-control form-control-sm" value="0"></td>
+										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_pitch" value="Send"></td>
+									</tr>
+
+									<tr>
+										<td>Yaw Rate</td>
+										<td><input type="number" name="yaw_p" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="yaw_i" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="yaw_d" class="form-control form-control-sm" value="0"></td>
+										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_yaw" value="Send"></td>
+									</tr>
+
+								</tbody>
+
+							</table>
+						</div>
+					</div>
+
+					<div class="card mb-3">
+						<div class="card-header">
+							Altitude controller
+						</div>
+
+						<div class="card-body">
+
+							<img src="altitude.svg" class="img-svg">	
+
+							<table class="table table-sm table-borderless">
+								<thead class="text-center">
+									<tr>
+										<th></th>
+										<th>P</th>
+										<th>I</th>
+										<th>D</th>
+										<th></th>
+									</tr>
+								</thead>
+
+								<tbody>
+
 									<tr>
 										<td>Altitude</td>
 										<td><input type="number" name="alt_p" class="form-control form-control-sm" value="0" disabled></td>
@@ -223,6 +277,7 @@
 
 							</table>
 						</div>
+
 					</div>
 				</div>
 

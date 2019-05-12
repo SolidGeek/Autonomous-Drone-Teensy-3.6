@@ -60,7 +60,7 @@ void Wireless::clearBuffer( void ){
 
 bool Wireless::value( const char * name, int * var ){
 
-	double temp;
+	float temp;
 
 	if( this->value( name, &temp ) ){
 
@@ -74,7 +74,7 @@ bool Wireless::value( const char * name, int * var ){
 }
 
 // Get value from received string
-bool Wireless::value( const char * name, double * var ){
+bool Wireless::value( const char * name, float * var ){
 
 	char * start;
 	char * end;
@@ -83,7 +83,7 @@ bool Wireless::value( const char * name, double * var ){
 	char buf[20] = {'\0'};
 
 	// Find start of parameter value
-	if( start = strstr( this->buffer, name )){
+	if( start = strstr( this->params, name )){
 
 		start++; // Not interested in the param name
 
@@ -96,7 +96,7 @@ bool Wireless::value( const char * name, double * var ){
 			buf[len] = '\0';
 
 			// Now convert the string in buf to a float
-			*var = atof(buf);
+			*var = (float)atof(buf);
      
 			return true;
 
@@ -108,7 +108,7 @@ bool Wireless::value( const char * name, double * var ){
 
 }
 
-void Wireless::addToBuffer( double value ){
+void Wireless::addToBuffer( float value ){
 	
 	char tempBuffer[20] = {'\0'};
 
