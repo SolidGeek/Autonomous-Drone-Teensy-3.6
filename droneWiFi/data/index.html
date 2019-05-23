@@ -175,7 +175,7 @@
 						
 						<div class="card-body">
 					
-							<img src="attitude.svg" class="img-svg">
+							
 
 							<table class="table table-sm table-borderless">
 								<thead class="text-center">
@@ -215,26 +215,26 @@
 
 									<tr class="border-top">
 										<td>Roll Rate</td>
-										<td><input type="number" name="roll_p" class="form-control form-control-sm" value="0"></td>
-										<td><input type="number" name="roll_i" class="form-control form-control-sm" value="0"></td>
-										<td><input type="number" name="roll_d" class="form-control form-control-sm" value="0"></td>
-										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_roll" value="Send"></td>
+										<td><input type="number" name="rollrate_p" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="rollrate_i" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="rollrate_d" class="form-control form-control-sm" value="0"></td>
+										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_rollrate" value="Send"></td>
 									</tr>
 
 									<tr>
 										<td>Pitch Rate</td>
-										<td><input type="number" name="pitch_p" class="form-control form-control-sm" value="0"></td>
-										<td><input type="number" name="pitch_i" class="form-control form-control-sm" value="0"></td>
-										<td><input type="number" name="pitch_d" class="form-control form-control-sm" value="0"></td>
-										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_pitch" value="Send"></td>
+										<td><input type="number" name="pitchrate_p" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="pitchrate_i" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="pitchrate_d" class="form-control form-control-sm" value="0"></td>
+										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_pitchrate" value="Send"></td>
 									</tr>
 
 									<tr>
 										<td>Yaw Rate</td>
-										<td><input type="number" name="yaw_p" class="form-control form-control-sm" value="0"></td>
-										<td><input type="number" name="yaw_i" class="form-control form-control-sm" value="0"></td>
-										<td><input type="number" name="yaw_d" class="form-control form-control-sm" value="0"></td>
-										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_yaw" value="Send"></td>
+										<td><input type="number" name="yawrate_p" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="yawrate_i" class="form-control form-control-sm" value="0"></td>
+										<td><input type="number" name="yawrate_d" class="form-control form-control-sm" value="0"></td>
+										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_yawrate" value="Send"></td>
 									</tr>
 
 								</tbody>
@@ -255,7 +255,7 @@
 
 						<div class="card-body">
 
-							<img src="altitude.svg" class="img-svg">	
+							
 
 							<table class="table table-sm table-borderless">
 								<thead class="text-center">
@@ -272,10 +272,10 @@
 
 									<tr>
 										<td>Altitude</td>
-										<td><input type="number" name="alt_p" class="form-control form-control-sm" value="0" disabled></td>
-										<td><input type="number" name="alt_i" class="form-control form-control-sm" value="0" disabled></td>
-										<td><input type="number" name="alt_d" class="form-control form-control-sm" value="0" disabled></td>
-										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_alt" value="Send" disabled></td>
+										<td><input type="number" name="alt_p" class="form-control form-control-sm" value="0" ></td>
+										<td><input type="number" name="alt_i" class="form-control form-control-sm" value="0" ></td>
+										<td><input type="number" name="alt_d" class="form-control form-control-sm" value="0" ></td>
+										<td><input type="submit" class="btn btn-secondary btn-sm" id="send_alt" value="Send"></td>
 									</tr>
 
 								</tbody>
@@ -300,27 +300,11 @@
 												Hover offset: <output name="hoverOffsetShow" id="hoverOffsetShow">0</output>
 											</label>
 
-											<input oninput="hoverOffsetShow.value = hoverOffset.value" name="hoverOffset" type="range" class="form-control-range" id="hoverOffset" min="0" max="1000" value="0">
+											<input oninput="hoverOffsetShow.value = hoverOffset.value" name="hoverOffset" type="range" class="form-control-range" id="hoverOffset" min="0" max="15000" value="0">
 											
 										</div>
 									</td>
 								</tr> 
-
-								<tr>
-									<td style="width: 150px"><label>Motor 1 offset </label>
-										<input type="number" name="offset1" class="form-control form-control-sm" value="0"></td>
-										<td rowspan="2"><img src="drone.svg" class="img-svg"></td>
-									<td style="width: 150px"><label>Motor 2 offset </label>
-										<input type="number" name="offset2" class="form-control form-control-sm" value="0"></td>
-								</tr>
-
-								<tr>
-									<td><label>Motor 4 offset </label>
-										<input type="number" name="offset4" class="form-control form-control-sm" value="0"></td>
-									<td><label>Motor 3 offset </label>
-										<input type="number" name="offset3" class="form-control form-control-sm" value="0"></td>
-								</tr>
-
 
 							</table>
 
@@ -341,6 +325,30 @@
 					Log
 				</div>
 				<textarea id="log" class="form-control" rows="10"></textarea>
+			</div>
+
+			<div class="card mb-3">
+
+				
+
+				<div class="card-header">
+					Measurement log
+				</div>
+
+				<div class="card-body">
+					<div class="input-group mb-3">
+						<select class="custom-select" id="logType">
+							<option value="roll" selected>Roll</option>
+							<option value="pitch">Pitch</option>
+							<option value="yaw">Yaw</option>
+							<option value="altitude">Altitude</option>
+						</select>
+						<div class="input-group-append">
+							<button class="btn btn-outline-secondary" id="beginLog" type="button">Log this</button>
+						</div>
+					</div>
+					<textarea id="measurement" class="form-control" rows="20"></textarea>
+				</div>
 			</div>
 		</div>
 

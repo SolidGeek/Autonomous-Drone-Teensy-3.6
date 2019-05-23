@@ -13,9 +13,13 @@ const char * password = "12345679";
 uint32_t lastPackage = 0;
 uint8_t wifiChannel = 10;
 
+
+const int buffer_size = 200;
+
 // Local path to save the GCode recordings
 char recordPath[] = "/recording.txt";
-char buffer[100] = {'\0'};
+char buffer[buffer_size] = {'\0'};
+
 
 void setup()
 {
@@ -41,7 +45,7 @@ void loop()
     // Clear buffer to get rid of old data
     memset(buffer,0,sizeof(buffer));
     
-    Serial.readBytesUntil('\n', buffer, 100);
+    Serial.readBytesUntil('\n', buffer, buffer_size);
     if (WiFi.softAPgetStationNum() > 0) {
       websocket.broadcastTXT(buffer);
     }

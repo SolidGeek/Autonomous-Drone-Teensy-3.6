@@ -24,11 +24,13 @@ bool Wireless::listen( void ){
 
 // Send serial data
 void Wireless::send( char * data ){
-	WIFIPORT.println( data );
+  WIFIPORT.write( data );
+  WIFIPORT.write('\n');
 }
 
 void Wireless::sendBuffer( ){
-  WIFIPORT.println( this->buffer );
+  WIFIPORT.write( this->buffer );
+  WIFIPORT.write('\n');
 }
 
 
@@ -39,18 +41,24 @@ void Wireless::sendTelemetry( void  ){
 }
 
 bool Wireless::check( const char * name ){
+  
+  char command[20] = {'\0'};
 
-	if( strstr( this->buffer, name ) != NULL ){
+  // The first part is always the command
+  char * start = &this->buffer[0];
+  char * end = strpbrk(this->buffer, " ");
 
-		// Find the end of the "command" and save this pointer in the params variable for variable extraction
-    char * end = strpbrk(this->buffer, " ");
+  uint8_t len = end - start;
+  strncpy ( command, this->buffer, len );
+
+  if ( strcmp(command, name) == 0 ) {
     strcpy( params, end );
+    return true;
 
-		return true;
+  }
 
-	}
+  return false;
 
-	return false;
 }
 
 

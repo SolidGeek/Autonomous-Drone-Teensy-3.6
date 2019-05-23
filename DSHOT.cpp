@@ -200,7 +200,7 @@ void DShot::requestTelemetry(){
 
 bool DShot::readTelemetry( Stream * tlmPort ){
 
-	uint8_t buf[10];
+	uint8_t buf[10] = {'\0'};
 	uint8_t num = 0;
 	bool tlmDone = false;
 	uint32_t lastTime = 0;
@@ -222,6 +222,10 @@ bool DShot::readTelemetry( Stream * tlmPort ){
 
 	if( tlmDone == true ){
 
+    // Clear serial buffer for future readings
+    while( tlmPort->available() > 0 )
+      tlmPort->read();
+
 		// Calculate 8bit CRC to validate telemetry
 		uint8_t valid = get_crc8(buf, 9); 
       
@@ -233,7 +237,7 @@ bool DShot::readTelemetry( Stream * tlmPort ){
 			tlm.amps       	= (float)((buf[3]<<8)|buf[4]) / 100.0;
 			tlm.ampHours   	= (float)((buf[5]<<8)|buf[6]);
 			tlm.rpm        	= (float)((buf[7]<<8)|buf[8]) * 100.0 / 7.0; 
-			tlm.timestamp 	= millis();
+			tlm.timestamp 	= micros();
         	return true;
       	}
 

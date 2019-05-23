@@ -12,7 +12,8 @@
 
 #define _DEBUG
 
-#define DSHOT_TLM_INTERVAL 100
+#define DSHOT_TLM_INTERVAL 2500 // 2500 us = 400 Hz
+#define ALT_OFFSET 50.0f
 
 #define TLM1 Serial2
 #define TLM2 Serial3
@@ -26,12 +27,17 @@ class Stabilizer
 
 public:
 
+  uint32_t lastRpmControl = 0;
+
 	Settings config;
 
 	float angles[3] = {0}; // Yaw, roll, pitch
 	int16_t gyro[3] = {0}; // X, Y, Z
 	int16_t accel[3] = {0}; // X, Y, Z
-	uint16_t altitude = 0;
+
+  int16_t filtAccel[3] = {0}; // X, Y, Z
+	float height = 0.0;
+  bool newAlt = false;
 
 	Stabilizer( void );
 
@@ -55,6 +61,8 @@ public:
 
 	void armMotors( void );
 
+  void motorRPMControl( void );
+
 	void setHome( void );
 
 	float batteryVoltage( void );
@@ -65,18 +73,37 @@ public:
 	int16_t s3 = 0;
 	int16_t s4 = 0;
 
+  // Actual RPM
+  float rpm[4] = {0.0};
+
+  // Wanted RPM
+  float rpmRef[4] = {0.0};
+  
 	bool motorsOn = false;
 
   // Inner loop controllers 
-  Controller RollSpeed;
-  Controller PitchSpeed; 
-  Controller YawSpeed;
+  Controller RollRate;
+  Controller PitchRate; 
+  Controller YawRate;
 
   // Outer loop controllers
   Controller Yaw;
   Controller Roll;
-  Controller Pitch; 
+  Controller Pitch;
 
+  Controller Altitude;
+
+  Controller Motor1;
+  Controller Motor2;
+  Controller Motor3;
+  Controller Motor4;
+
+    // Motor objects
+  DShot * ESC1;
+  DShot * ESC2;
+  DShot * ESC3;
+  DShot * ESC4;
+  
 private:
 
 	// Altitude sensor object (TOF)
@@ -85,11 +112,7 @@ private:
 	// Attitude sensor object (IMU)
 	MPU6050 IMU;
 
-	// Motor objects
-	DShot * ESC1;
-	DShot * ESC2;
-	DShot * ESC3;
-	DShot * ESC4;
+
 
 	// Yaw home
 	float yawRef = 0.0;
@@ -124,6 +147,8 @@ private:
 	void initTOF( void );
 
 	void setIMUOffsets( void );
+
+  float EMA( float newSample, float oldSample, float alpha );
 
 };
 

@@ -6,23 +6,44 @@ Stabilizer::Stabilizer(){
   ESC2 = new DShot(2);
   ESC3 = new DShot(3);
   ESC4 = new DShot(4);
-  
-  /* Inner angular speed controllers */
-  PitchSpeed.setConstants(1, 0, 0);
-  RollSpeed.setConstants(1, 0, 0);
-  YawSpeed.setConstants(1, 0, 0);
+
+  /* Motor speed controllers */
+  Motor1.setConstants(0.12, 1.2, 0);
+  Motor2.setConstants(0.12, 1.2, 0);
+  Motor3.setConstants(0.12, 1.2, 0);
+  Motor4.setConstants(0.12, 1.2, 0);
 
   /* Integral windup */
-  Pitch.setMaxIntegral(10.0);
-  Roll.setMaxIntegral(10.0);
-  Yaw.setMaxIntegral(10.0);
-  
-  YawSpeed.setMaxOutput(150.0);
+  Motor1.setMaxIntegral(200.0);
+  Motor2.setMaxIntegral(200.0);
+  Motor3.setMaxIntegral(200.0);
+  Motor4.setMaxIntegral(200.0);
+  Motor1.absIntegral = true;
+  Motor2.absIntegral = true;
+  Motor3.absIntegral = true;
+  Motor4.absIntegral = true;
+  Motor1.startupIntegral = true;
+  Motor2.startupIntegral = true;
+  Motor3.startupIntegral = true;
+  Motor4.startupIntegral = true;
+
+  Altitude.startupIntegral = true;
+  Altitude.absIntegral = true;
+  Altitude.integralThreshold = 5.0;
+  Altitude.setMaxIntegral(1000.0);
+
+  Pitch.setMaxIntegral(6.0);
+  Roll.setMaxIntegral(6.0);
+
+  PitchRate.setMaxIntegral(10.0);
+  RollRate.setMaxIntegral(10.0);
+
 }
 
 void Stabilizer::setup() {
 
 	// Load config from EEPROM
+  // config.save(); // to refresh config
 	config.load();
 
 	// Begin I2C bus at 400kHz
@@ -55,7 +76,10 @@ void Stabilizer::setup() {
 	Yaw.setConstants( config.yawPID );
 	Roll.setConstants( config.rollPID );
 	Pitch.setConstants( config.pitchPID );
-
+  YawRate.setConstants( config.yawRatePID );
+  RollRate.setConstants( config.rollRatePID );
+  PitchRate.setConstants( config.pitchRatePID );
+  Altitude.setConstants( config.altPID );
 }
 
 void Stabilizer::initTOF( void ){
@@ -166,9 +190,11 @@ bool Stabilizer::readDMPAngles() {
 		angles[1] *= (180 / M_PI);
 		angles[2] *= (180 / M_PI);
 
-
     // Get gyro values for inner loop stabilization also
     IMU.dmpGetGyro( gyro, fifoBuffer );
+
+    // Get accelelometer values 
+    // IMU.dmpGetAccel( accel, fifoBuffer ); // Not used so lets save some processing
 
 		return true;
 
@@ -283,10 +309,18 @@ void Stabilizer::setIMUOffsets( void ) {
 void Stabilizer::motorMixing( ){
 
 	// Read angles from DMP (digital motion processor)
-	readDMPAngles();
+	// readDMPAngles();
 
 	// Read altitude from TOF sensor
 	readAltitude();
+
+  float altRef = 200.0;
+  
+  Altitude.run( altRef, height );
+    
+  float altOffset = Altitude.getOutput() + (float)config.hoverOffset; // In RPM
+
+  // Serial.println( altOffset );
 
 	// Calculate yaw angle according to drones reference frame (0 = startup angle)
 	float alpha_real = angles[0];
@@ -314,22 +348,99 @@ void Stabilizer::motorMixing( ){
 	float pitch_out = Pitch.getOutput();
 
 	// Inner controller loops
-	YawSpeed.run( yaw_out, gyro[2] );
-	RollSpeed.run( roll_out, -gyro[1] );
-	PitchSpeed.run( pitch_out, gyro[0] );
+	YawRate.run( yaw_out, gyro[2] );
+	RollRate.run( roll_out, -gyro[1] );
+	PitchRate.run( pitch_out, gyro[0] );
 
-	// Output from inner controllers
-	int16_t tau_roll = (int16_t)RollSpeed.getOutput();
-	int16_t tau_pitch = (int16_t)PitchSpeed.getOutput();
-	int16_t tau_yaw = (int16_t)YawSpeed.getOutput();
+	// Output from inner controllers (in RPM)
+	float tau_roll  = RollRate.getOutput();
+	float tau_pitch = PitchRate.getOutput();
+	float tau_yaw   = YawRate.getOutput();
+  
+  // Motor mixing (MMA)
+  rpmRef[0] = altOffset - tau_yaw - tau_pitch + tau_roll;
+  rpmRef[1] = altOffset + tau_yaw - tau_pitch - tau_roll;
+  rpmRef[2] = altOffset - tau_yaw + tau_pitch - tau_roll;
+  rpmRef[3] = altOffset + tau_yaw + tau_pitch + tau_roll;
 
+  /* Serial.print( RollRate.error ); Serial.print('\t');
+  Serial.print( RollRate.output );Serial.print('\t');
+  Serial.println( RollRate.integral );*/
+  
+  
+  
+  /* Serial.print( millis() ); Serial.print(';');
+  Serial.println( angles[2] ); */
+  
 	// Speeds 3, 4, 1, 2 because IMU is turned 90 degress x = y, and y = x
-	s3 = constrain( config.motorOffset[2] + config.hoverOffset - tau_yaw + tau_pitch - tau_roll, 0, 2000 ) ; 
-	s4 = constrain( config.motorOffset[3] + config.hoverOffset + tau_yaw + tau_pitch + tau_roll, 0, 2000 ) ; 
-	s1 = constrain( config.motorOffset[0] + config.hoverOffset - tau_yaw - tau_pitch + tau_roll, 0, 2000 ) ; 
-	s2 = constrain( config.motorOffset[1] + config.hoverOffset + tau_yaw - tau_pitch - tau_roll, 0, 2000 ) ; 
+
+	
 
 }
+
+void Stabilizer::motorRPMControl( void ){
+
+  uint8_t tlmCount = 0;
+  uint32_t now = micros();
+
+  if( (now - ESC1->tlm.timestamp) < 2500 )
+    tlmCount++;
+
+  if( (now - ESC2->tlm.timestamp) < 2500 )
+    tlmCount++;
+
+  if( (now - ESC3->tlm.timestamp) < 2500 )
+    tlmCount++;
+
+  if( (now - ESC4->tlm.timestamp) < 2500 )
+    tlmCount++;
+
+  if( tlmCount == 4 ){
+
+    /* uint32_t times = micros() - lastRpmControl;
+    lastRpmControl = micros();
+    Serial.print("us: ");
+    Serial.println( times ); */
+
+    Serial.print( ESC1->tlm.rpm ); Serial.print('\t');
+    Serial.print( ESC2->tlm.rpm ); Serial.print('\t');
+    Serial.print( ESC3->tlm.rpm  ); Serial.print('\t');
+    Serial.println( ESC4->tlm.rpm );
+    
+    
+    // Control Motor RPM
+    rpm[0] = EMA( ESC1->tlm.rpm, rpm[0], 0.8 );
+    rpm[1] = EMA( ESC2->tlm.rpm, rpm[1], 0.8 );
+    rpm[2] = EMA( ESC3->tlm.rpm, rpm[2], 0.8 );
+    rpm[3] = EMA( ESC4->tlm.rpm, rpm[3], 0.8 );
+
+    rpmRef[0] = 3000;
+    rpmRef[1] = 3000;
+    rpmRef[2] = 3000;
+    rpmRef[3] = 3000;
+    
+    // Calculate RPM controller 
+    Motor1.run( rpmRef[0], rpm[0] );
+    Motor2.run( rpmRef[1], rpm[1] );
+    Motor3.run( rpmRef[2], rpm[2] );
+    Motor4.run( rpmRef[3], rpm[3] );
+
+    // Calculate actual DShot output signal
+    s1 = constrain( Motor1.getOutput(), 1, 2000 ) ; 
+    s2 = constrain( Motor2.getOutput(), 1, 2000 ) ; 
+    s3 = constrain( Motor3.getOutput(), 1, 2000 ) ; 
+    s4 = constrain( Motor4.getOutput(), 1, 2000 ) ; 
+
+    // Reset telemetry timestamp such that we run at same frequency as DShot
+    ESC1->tlm.timestamp = 0;
+    ESC2->tlm.timestamp = 0;
+    ESC3->tlm.timestamp = 0;
+    ESC4->tlm.timestamp = 0;
+      
+  }
+    
+}
+
 
 void Stabilizer::setMotorSpeeds( void ){
 
@@ -376,7 +487,11 @@ void Stabilizer::armMotors( void ){
 void Stabilizer::readAltitude( void ){
 
 	if( TOF.dataReady() ){
-		altitude = TOF.read();
+
+    height = EMA( (float)TOF.read() - ALT_OFFSET, height, 0.8 );
+    if ( height < 0.0 )
+      height = 0.0;
+
 	}
 
 }
@@ -384,15 +499,15 @@ void Stabilizer::readAltitude( void ){
 void Stabilizer::getTelemetry( void ){
 
 	// Only request telemetry once in a while
-	if( millis() - lastTlmReq > DSHOT_TLM_INTERVAL ){
+	/* if( micros() - lastTlmReq > DSHOT_TLM_INTERVAL ){
 
-		lastTlmReq = millis();
+		lastTlmReq = micros();
 		ESC1->requestTelemetry(); 
 		ESC2->requestTelemetry(); 
 		ESC3->requestTelemetry(); 
 		ESC4->requestTelemetry();
 
-	}
+	}*/
 
 	// Read telemetry as soon as possible
 	ESC1->readTelemetry( &TLM1 );
@@ -409,34 +524,20 @@ void Stabilizer::setHome(){
 
 float Stabilizer::batteryVoltage( void ){
 
-	uint32_t now = millis();
 	float voltage = 0.0;
-	uint8_t count = 0;
 
-	// Check if the telemetry is new or just old readings 
-	if( now - ESC1->tlm.timestamp <= DSHOT_TLM_INTERVAL + 5 ){
-		voltage += ESC1->tlm.voltage;
-		count++;
-	}
-
-	if( now - ESC2->tlm.timestamp <= DSHOT_TLM_INTERVAL + 5 ){
-		voltage += ESC2->tlm.voltage;
-		count++;
-	}
-
-	if( now - ESC3->tlm.timestamp <= DSHOT_TLM_INTERVAL + 5 ){
-		voltage += ESC3->tlm.voltage;
-		count++;
-	}
-
-	if( now - ESC3->tlm.timestamp <= DSHOT_TLM_INTERVAL + 5 ){
-		voltage += ESC3->tlm.voltage;
-		count++;
-	}
+	voltage += ESC1->tlm.voltage;
+	voltage += ESC2->tlm.voltage;
+	voltage += ESC3->tlm.voltage;
+	voltage += ESC3->tlm.voltage;
 
 	if ( voltage != 0.0 ){
-		return voltage / (float)count;
+		return voltage / 4.0;
 	}
 	
 	return 0.0;
+}
+
+float Stabilizer::EMA( float newSample, float oldSample, float alpha ){
+  return ((alpha * newSample) + (1.0-alpha) * oldSample);  
 }

@@ -78,7 +78,7 @@ private:
 	uint8_t dshotBuffer[DSHOT_BUFFER_LENGTH];
 	uint32_t mod = (F_BUS + DSHOT_CLOCK / 2) / DSHOT_CLOCK;
 	uint32_t trig = 254;
-	bool requestTlm = false;
+	bool requestTlm = true;
 
 	uint8_t getChecksum(uint16_t value);
 

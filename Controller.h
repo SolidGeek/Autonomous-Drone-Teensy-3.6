@@ -20,17 +20,23 @@ public:
 
 	void reset( void );
 
+  float output = 0.0;
+  float error = 0.0;
+  float lastError = 0.0;
+  float integral = 0.0;
+  float derivative = 0.0;
+
+  bool absIntegral = false;
+  bool startupIntegral = false;
+  float integralThreshold = 0.0;
+
 private: 
 
 	float Kp = 0.0;
 	float Ki = 0.0;
 	float Kd = 0.0;
 
-	float output = 0.0;
-	float error = 0.0;
-	float lastError = 0.0;
-	float integral = 0.0;
-	float derivative = 0.0;
+
 
 	/* Used for integral windup */
 	float maxIntegral = 0.0;

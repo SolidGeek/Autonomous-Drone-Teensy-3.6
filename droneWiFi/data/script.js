@@ -2,15 +2,24 @@
 var websocket;
 
 // Element references to modify DOM
-var statusBar 	= document.getElementById("status");
-var logElement 	= document.getElementById("log");
-var sendRoll 	= document.getElementById("send_roll");
-var sendPitch 	= document.getElementById("send_pitch");
-var sendYaw 	= document.getElementById("send_yaw");
-var sendOffset 	= document.getElementById("send_offset");
-var emergency 	= document.getElementById("emergency");
-var start 		= document.getElementById("start");
-var save 		= document.getElementById("save");
+var statusBar 		= document.getElementById("status");
+var logElement 		= document.getElementById("log");
+var sendRoll 		= document.getElementById("send_roll");
+var sendPitch 		= document.getElementById("send_pitch");
+var sendYaw 		= document.getElementById("send_yaw");
+var sendRollRate	= document.getElementById("send_rollrate");
+var sendPitchRate	= document.getElementById("send_pitchrate");
+var sendYawRate 	= document.getElementById("send_yawrate");
+var sendOffset 		= document.getElementById("send_offset");
+var sendAlt			= document.getElementById("send_alt");
+var emergency 		= document.getElementById("emergency");
+var start 			= document.getElementById("start");
+var save 			= document.getElementById("save");
+var beginLog		= document.getElementById("beginLog");
+var logType			= document.getElementById("logType");
+var measurementLog  = document.getElementById("measurement");
+
+var logging = false;
 
 var configRead = false;
 
@@ -78,7 +87,7 @@ function sendCommand( command, param = [] ){
 	}
 
 	if(websocket.readyState == 1){
-		
+		console.log( gcode );
 		websocket.send( gcode + " " );
 	}
 }
@@ -118,6 +127,25 @@ function onWsMessage(event) {
 		document.getElementById('pitch_value').value = tlm[1];
 		document.getElementById('yaw_value').value = tlm[2];
 
+		if( logging ){
+
+			var type = logType.value;
+
+			measurementLog.value += Date.now() + ";";
+
+			if( type == 'roll')
+				measurementLog.value += tlm[0];
+			else if( type == 'pitch' )
+				measurementLog.value += tlm[1];
+			else if( type == 'yaw' )
+				measurementLog.value += tlm[2];
+
+			measurementLog.value += '\n';
+
+			measurementLog.scrollTop = measurementLog.scrollHeight;
+
+		}
+
 		altitude.append( Date.now(), tlm[3]);
 		document.getElementById('alt_value').value = tlm[3];
 
@@ -143,6 +171,8 @@ function onWsMessage(event) {
 		for (var i in items) {
 	    	settings[i] = parseFloat( items[i] );
 		}
+		
+		console.log( settings );
 
 		document.getElementsByName('roll_p')[0].value = settings[0];
 		document.getElementsByName('roll_i')[0].value = settings[1];
@@ -156,17 +186,24 @@ function onWsMessage(event) {
 		document.getElementsByName('yaw_i')[0].value = settings[7];
 		document.getElementsByName('yaw_d')[0].value = settings[8];
 
-		document.getElementsByName('alt_p')[0].value = settings[9];
-		document.getElementsByName('alt_i')[0].value = settings[10];
-		document.getElementsByName('alt_d')[0].value = settings[11];
+		document.getElementsByName('rollrate_p')[0].value = settings[9];
+		document.getElementsByName('rollrate_i')[0].value = settings[10];
+		document.getElementsByName('rollrate_d')[0].value = settings[11];
+		
+		document.getElementsByName('pitchrate_p')[0].value = settings[12];
+		document.getElementsByName('pitchrate_i')[0].value = settings[13];
+		document.getElementsByName('pitchrate_d')[0].value = settings[14];
 
-		document.getElementsByName('hoverOffset')[0].value = settings[12];
-		document.getElementById('hoverOffsetShow').value = settings[12];
+		document.getElementsByName('yawrate_p')[0].value = settings[15];
+		document.getElementsByName('yawrate_i')[0].value = settings[16];
+		document.getElementsByName('yawrate_d')[0].value = settings[17];
 
-		document.getElementsByName('offset1')[0].value = settings[13];
-		document.getElementsByName('offset2')[0].value = settings[14];
-		document.getElementsByName('offset3')[0].value = settings[15];
-		document.getElementsByName('offset4')[0].value = settings[16];
+		document.getElementsByName('alt_p')[0].value = settings[18];
+		document.getElementsByName('alt_i')[0].value = settings[19];
+		document.getElementsByName('alt_d')[0].value = settings[20];
+
+		document.getElementsByName('hoverOffset')[0].value = settings[21];
+		document.getElementById('hoverOffsetShow').value = settings[21];
 
 		configRead = true;
 
@@ -267,7 +304,8 @@ var altChart = new SmoothieChart({
 	labels:{fillStyle:'#000',fontSize:14},
 	tooltip:true,
 	responsive: true,
-	yRangeFunction:minMaxRange,
+	minValue: 0,
+	maxValue: 1000,
 });
 
 altChart.addTimeSeries(altitude, { strokeStyle: '#000' });
@@ -289,6 +327,21 @@ sendRoll.onclick = function()
 	] );
 };
 
+sendRollRate.onclick = function()
+{
+	// Save the settings to variables
+	var kp = document.getElementsByName('rollrate_p')[0].value;
+	var ki = document.getElementsByName('rollrate_i')[0].value;
+	var kd = document.getElementsByName('rollrate_d')[0].value;
+
+	// Send settings over WebSocket
+	sendCommand( "ROLLRATE", [
+		{name: "P", value: kp},
+		{name: "I", value: ki},
+		{name: "D", value: kd},
+	] );
+};
+
 sendPitch.onclick = function()
 {
 	// Save the settings to variables
@@ -298,6 +351,21 @@ sendPitch.onclick = function()
 
 	// Send settings over WebSocket
 	sendCommand( "PITCH", [
+		{name: "P", value: kp},
+		{name: "I", value: ki},
+		{name: "D", value: kd},
+	] );
+};
+
+sendPitchRate.onclick = function()
+{
+	// Save the settings to variables
+	var kp = document.getElementsByName('pitchrate_p')[0].value;
+	var ki = document.getElementsByName('pitchrate_i')[0].value;
+	var kd = document.getElementsByName('pitchrate_d')[0].value;
+
+	// Send settings over WebSocket
+	sendCommand( "PITCHRATE", [
 		{name: "P", value: kp},
 		{name: "I", value: ki},
 		{name: "D", value: kd},
@@ -319,22 +387,44 @@ sendYaw.onclick = function()
 	] );
 };
 
+sendYawRate.onclick = function()
+{
+	// Save the settings to variables
+	var kp = document.getElementsByName('yawrate_p')[0].value;
+	var ki = document.getElementsByName('yawrate_i')[0].value;
+	var kd = document.getElementsByName('yawrate_d')[0].value;
+
+	// Send settings over WebSocket
+	sendCommand( "YAWRATE", [
+		{name: "P", value: kp},
+		{name: "I", value: ki},
+		{name: "D", value: kd},
+	] );
+};
+
+sendAlt.onclick = function()
+{
+	// Save the settings to variables
+	var kp = document.getElementsByName('alt_p')[0].value;
+	var ki = document.getElementsByName('alt_i')[0].value;
+	var kd = document.getElementsByName('alt_d')[0].value;
+
+	// Send settings over WebSocket
+	sendCommand( "ALTITUDE", [
+		{name: "P", value: kp},
+		{name: "I", value: ki},
+		{name: "D", value: kd},
+	] );
+};
+
 sendOffset.onclick = function(){
 
 	// Save the settings to variables
 	var hoverOffset = document.getElementsByName('hoverOffset')[0].value;
-	var offset1 = document.getElementsByName('offset1')[0].value;
-	var offset2 = document.getElementsByName('offset2')[0].value;
-	var offset3 = document.getElementsByName('offset3')[0].value;
-	var offset4 = document.getElementsByName('offset4')[0].value;
 
 	// Send settings over WebSocket
 	sendCommand( "OFFSET", [
 		{name: "H", value: hoverOffset},
-		{name: "A", value: offset1},
-		{name: "B", value: offset2},
-		{name: "C", value: offset3},
-		{name: "D", value: offset4},
 	] );
 }
 
@@ -342,7 +432,22 @@ emergency.onclick = function()
 {
 	// Send settings over WebSocket
 	sendCommand( "STOP" );
+	logging = false;
 };
+
+beginLog.onclick = function(){
+
+	if( logging == false )
+		logging = true;
+	else
+		logging = false;
+
+	if( logging == false ){
+
+		measurementLog.value = "";
+
+	}
+}
 
 start.onclick = function(){
 	sendCommand( "START" );

@@ -22,7 +22,10 @@ void Controller::run(float setpoint, float input ){
     error = setpoint - input; 
 
     // Add this cycle's integral to the integral cumulation
-    integral += error * deltaTime; 
+    if( startupIntegral && abs(input) > integralThreshold )
+      integral += error * deltaTime;
+    else
+      integral -= error * deltaTime;
 
     // Calculate the slope with the data from the current and last cycle
     derivative = (error - lastError);
@@ -31,6 +34,10 @@ void Controller::run(float setpoint, float input ){
     if (maxIntegral != 0.0){
       if(integral > maxIntegral) integral = maxIntegral;
       if(integral < -maxIntegral) integral = -maxIntegral;
+    }
+
+    if( absIntegral && integral < 0.0) {
+      integral = 0.0;
     }
     
     // Calculate the controller output based on the data and PID gains
