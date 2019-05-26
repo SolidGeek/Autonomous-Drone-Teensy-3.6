@@ -20,8 +20,8 @@
 			</div>
 			<div>
 				<span><b>Battery: </b> <output style="width: 60px" class="mr-2 text-right" id="voltage" >0.0 V</output></span>
-				<button id="start" class="btn btn-primary">Start</button> 
-				<button id="emergency" class="btn btn-danger">Stop</button>
+				<div id="start" class="btn btn-primary">Start</div> 
+				<div id="emergency" class="btn btn-danger">Stop</div>
 			</div>
 		</div>
 	</header>
@@ -167,7 +167,7 @@
 			
 			<div class="row">
 
-				<div class="col-sm-6">
+				<div class="col-md-6">
 					<div class="card mb-3">
 						<div class="card-header">
 							Attitude controller
@@ -246,7 +246,7 @@
 					
 				</div>
 
-				<div class="col-sm-6">
+				<div class="col-md-6">
 
 					<div class="card mb-3">
 						<div class="card-header">
@@ -300,7 +300,7 @@
 												Hover offset: <output name="hoverOffsetShow" id="hoverOffsetShow">0</output>
 											</label>
 
-											<input oninput="hoverOffsetShow.value = hoverOffset.value" name="hoverOffset" type="range" class="form-control-range" id="hoverOffset" min="0" max="15000" value="0">
+											<input oninput="hoverOffsetShow.value = hoverOffset.value" name="hoverOffset" type="range" class="form-control-range" id="hoverOffset" step="500" min="0" max="15000" value="0">
 											
 										</div>
 									</td>

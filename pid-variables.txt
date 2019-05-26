@@ -1,0 +1,7 @@
+Roll: 		3,5 	0 	0
+Pitch: 		3,5 	0 	0
+Yaw:		14  	0 	40
+
+Roll rate: 	12	0 	60
+Pitch rate: 12 	0 	60
+Yaw rate: 	1,5	0	25

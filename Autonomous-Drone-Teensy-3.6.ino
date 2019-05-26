@@ -35,22 +35,18 @@ void setup() {
 	// Setup flight stablizer (IMU, altitude etc.)
 	FC.setup();
 
-	// The IMU pulls a pin HIGH whenever DMP data is ready to be read
-	// Attach interrupt to this pin, to read when new data is ready
-	pinMode(IMUPin, INPUT);
-	attachInterrupt( digitalPinToInterrupt(IMUPin), dmpDataReady, RISING);
-
 	// Enable interrupt timer at 400 Hz for throttle update.
 	// Set priority to highest as to not be interrupted by other interrupts
 	speedTimer.begin(interruptThrottle, 2500); 	
 	speedTimer.priority(0);
 
-	// Makes sure the DMP values have settled (500 readings)
-	while( countDmp < 500 ){
-		if (newDmpData){
-			FC.readDMPAngles();
-			newDmpData = false;  
-		}
+  uint32_t settlingTimer = millis();
+	// Makes sure the DMP values have settled (2 seconds)
+	while( millis() - settlingTimer < 5000 ){
+		
+	  FC.readDMPAngles();
+    delayMicroseconds(2500); // 200 Hz
+    
 	}
 	// Set home (current real world yaw = drones zero reference)
 	FC.setHome();
@@ -64,7 +60,7 @@ uint32_t junkTimer = 0;
 uint32_t rpmTimer = 0;
 uint32_t mmaTimer = 0;
 
-uint32_t junkInterval = 2500; // 200 Hz, shifted 1250 microseconds
+uint32_t junkInterval = 5000; // 200 Hz, shifted 2500 microseconds
 uint32_t rpmInterval = 2500;
 uint32_t mmaInterval = 5000; // 200 Hz
 
@@ -83,27 +79,25 @@ void loop() {
 
   // Variable used for precisely timing the jobs
   timing = micros() - lastDShot;
-
+  if( timing > 2500 )
+    timing = 0;
   /* 
    *  ----- RPM Timing -----
    *  It takes a little time for ESC telemetry to reach Teensy, and the RPM control system takes short time to process
    *  We put rpm control and telemetry read in back of time-frame, 300us is more than enough
    */
- 
-   
+
   if( timing >= 2200 && (micros() - rpmTimer >= rpmInterval ) ){
     rpmTimer = micros() + (2200 - timing); // Adjust the rpmTimer such that we always run the rpm-thingy at the same time. 
 
-    // FUCKING TELEMETRY DOESNT WORK INSIDE HERE WHY
-    // WHYYYYYY???
-    // NOW IT DOES
-    // WUP WUP - MASTER PROGRAMMAR WAS HERE
+    
     FC.getTelemetry();
     FC.motorRPMControl();
-
-    /* Serial.println( micros() - testFreq ); 
-    testFreq = micros(); */
     
+
+    // Serial.println( micros() - testFreq ); 
+    // testFreq = micros(); 
+     
   }
 
    /* 
@@ -118,11 +112,9 @@ void loop() {
     // Set to tell next "time-frame" is free for junk (wifi)
     timeAvailable = 1;
 
-    // Read angles/data from DMP (FUCK THE HARDWARE INTERRUPT)
-    FC.readDMPAngles();
-
     // Motor mixing algorithm and controller
     FC.motorMixing();
+
   }
 
   /*
@@ -134,9 +126,7 @@ void loop() {
   if( timing >= 10 && timeAvailable == 2 && (micros() - junkTimer >= junkInterval)){
     junkTimer = micros() + (10 - timing) ;  // Adjust the timer to always hit 10us after dshot..
     timeAvailable = 0;
-
-    uint32_t startTimer = micros();
-  
+    
     // Send telemetry over WiFI
     sendTelemetry();
 
@@ -146,44 +136,14 @@ void loop() {
       commandList();
     }
   }
-
-  /* 
-  // MMA takes 1600us + 200us headroom.
-  if( newTlm && timing > 1800 ){
-
-    Serial.println(micros()-testFreq);
-    testFreq = micros();
-    
-    FC.getTelemetry();
-    FC.motorRPMControl();
-    newTlm = false;
-    
-  }
-  
-	// Listen for commands from WiFi
-  if( mmaDone && newTlm == false && timing <= 200 ){
-    
-    sendTelemetry();
-    
-  	if( CC.listen() ){
-  		// Process command
-  		commandList();
-  	}
-  }*/
-
-}
-
-// Function called when new DMP data is ready
-void dmpDataReady(){
-	newDmpData = true;
-	countDmp++;
-  lastDmpData = micros();
 }
 
 // Function to update motor speeds
 void interruptThrottle(){
   
-  if( timeAvailable) timeAvailable++;
+  lastDShot = micros();
+  
+  if( timeAvailable == 1 ) timeAvailable++;
   
   FC.ESC1->requestTelemetry(); 
   FC.ESC2->requestTelemetry(); 
@@ -191,7 +151,7 @@ void interruptThrottle(){
   FC.ESC4->requestTelemetry();
   
 	FC.setMotorSpeeds();
-  lastDShot = micros();
+  
 }
 
 void commandList(){
@@ -216,6 +176,7 @@ void commandList(){
 	if( CC.check( "STOP" ) ){
     Serial.println( " -- MOTORS OFF -- " );
 		FC.motorsOn = false;
+    FC.rpmStartup = false;
 	}
 
 	if( CC.check( "ROLL" ) ){
@@ -337,26 +298,37 @@ void sendConfig() {
 
 
 void sendTelemetry( ){
+
+  static bool tlmType = false;
+  
 	CC.clearBuffer();
 
-	CC.addToBuffer("TELEMETRY");
-
-	// Add roll, pitch and yaw
-	CC.addToBuffer( FC.angles[1] ); // Roll
-	CC.addToBuffer( FC.angles[2] ); // Pitch
-	CC.addToBuffer( FC.angles[0] ); // Yaw
+  if( tlmType == true ){
+  	CC.addToBuffer("TELEMETRY");
   
-	// Add altitude
-	CC.addToBuffer( FC.height );
-	
-	// Add battery voltage
-	CC.addToBuffer( FC.batteryVoltage() );
+  	// Add roll, pitch and yaw
+  	CC.addToBuffer( FC.angles[1] ); // Roll
+  	CC.addToBuffer( FC.angles[2] ); // Pitch
+  	CC.addToBuffer( FC.yaw ); // Yaw
+    
+  	// Add altitude
+  	CC.addToBuffer( FC.height );
+  	
+  	// Add battery voltage
+  	CC.addToBuffer( FC.batteryVoltage() );
+  
+  }else{
+    
+    CC.addToBuffer("RPM");
+    
+    CC.addToBuffer( FC.rpm[0] );
+    CC.addToBuffer( FC.rpm[1] );
+    CC.addToBuffer( FC.rpm[2] );
+    CC.addToBuffer( FC.rpm[3] ); 
+    
+  }
 
-	// Add motor outputs for inspection
-	CC.addToBuffer( FC.s1 );
-	CC.addToBuffer( FC.s2 );
-	CC.addToBuffer( FC.s3 );
-	CC.addToBuffer( FC.s4 );
+  tlmType = !tlmType;
 
 	CC.sendBuffer();
 

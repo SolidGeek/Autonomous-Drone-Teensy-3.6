@@ -8,16 +8,16 @@ Stabilizer::Stabilizer(){
   ESC4 = new DShot(4);
 
   /* Motor speed controllers */
-  Motor1.setConstants(0.12, 1.2, 0);
-  Motor2.setConstants(0.12, 1.2, 0);
-  Motor3.setConstants(0.12, 1.2, 0);
-  Motor4.setConstants(0.12, 1.2, 0);
+  Motor1.setConstants(0.3, 1.5, 0);
+  Motor2.setConstants(0.3, 1.5, 0);
+  Motor3.setConstants(0.3, 1.5, 0);
+  Motor4.setConstants(0.3, 1.5, 0);
 
   /* Integral windup */
-  Motor1.setMaxIntegral(200.0);
-  Motor2.setMaxIntegral(200.0);
-  Motor3.setMaxIntegral(200.0);
-  Motor4.setMaxIntegral(200.0);
+  Motor1.setMaxIntegral(600.0);
+  Motor2.setMaxIntegral(600.0);
+  Motor3.setMaxIntegral(600.0);
+  Motor4.setMaxIntegral(600.0);
   Motor1.absIntegral = true;
   Motor2.absIntegral = true;
   Motor3.absIntegral = true;
@@ -27,10 +27,9 @@ Stabilizer::Stabilizer(){
   Motor3.startupIntegral = true;
   Motor4.startupIntegral = true;
 
-  Altitude.startupIntegral = true;
-  Altitude.absIntegral = true;
-  Altitude.integralThreshold = 5.0;
-  Altitude.setMaxIntegral(1000.0);
+  // Altitude.startupIntegral = true;
+  // Altitude.absIntegral = true;
+  Altitude.setMaxIntegral(80.0);
 
   Pitch.setMaxIntegral(6.0);
   Roll.setMaxIntegral(6.0);
@@ -171,7 +170,16 @@ bool Stabilizer::readDMPAngles() {
 		// Otherwise, check for DMP data ready interrupt
 	} else if (imuStatus & _BV(MPU6050_INTERRUPT_DMP_INT_BIT)) {
 		// wait for correct available data length, should be a VERY short wait
-		while (fifoCount < packetSize) fifoCount = IMU.getFIFOCount();
+
+    uint32_t timeoutTimer = micros();
+		while (fifoCount < packetSize && (micros() - timeoutTimer < 100) ){
+		  fifoCount = IMU.getFIFOCount();
+		}
+
+    // Return false if while-loop was exited
+    if( micros() - timeoutTimer > 100 ) {
+      return false;
+    } 
     
 		// read a packet from FIFO
 		IMU.getFIFOBytes(fifoBuffer, packetSize);
@@ -308,15 +316,18 @@ void Stabilizer::setIMUOffsets( void ) {
 // Should be run everytime new data from sensors is ready to calculate motor speeds
 void Stabilizer::motorMixing( ){
 
+  uint32_t startupTiming = 0;
+  float startupRpm = 0;
+
 	// Read angles from DMP (digital motion processor)
-	// readDMPAngles();
+	readDMPAngles();
 
 	// Read altitude from TOF sensor
 	readAltitude();
 
-  float altRef = 200.0;
   
-  Altitude.run( altRef, height );
+  
+  Altitude.run( heightRef, height );
     
   float altOffset = Altitude.getOutput() + (float)config.hoverOffset; // In RPM
 
@@ -326,19 +337,18 @@ void Stabilizer::motorMixing( ){
 	float alpha_real = angles[0];
 	float alpha_ref = yawRef;
 	float droneYaw = alpha_real - alpha_ref;
-	float alpha_drone = 0.0;
 
 	if( droneYaw > 180.0 ){
-		alpha_drone = droneYaw - 360.0;
+		yaw = droneYaw - 360.0;
 	}
 	else if( droneYaw < -180.0 ){
-		alpha_drone = droneYaw + 360.0;
+		yaw = droneYaw + 360.0;
 	}
 	else
-		alpha_drone = droneYaw; 
+		yaw = droneYaw; 
 
 	// Outer controller loops
-	Yaw.run( yawSetpoint, alpha_drone );
+	Yaw.run( yawSetpoint, yaw );
 	Roll.run( rollSetpoint, angles[1] );
 	Pitch.run( pitchSetpoint, angles[2] );
 
@@ -357,16 +367,65 @@ void Stabilizer::motorMixing( ){
 	float tau_pitch = PitchRate.getOutput();
 	float tau_yaw   = YawRate.getOutput();
   
-  // Motor mixing (MMA)
-  rpmRef[0] = altOffset - tau_yaw - tau_pitch + tau_roll;
-  rpmRef[1] = altOffset + tau_yaw - tau_pitch - tau_roll;
-  rpmRef[2] = altOffset - tau_yaw + tau_pitch - tau_roll;
-  rpmRef[3] = altOffset + tau_yaw + tau_pitch + tau_roll;
+  
+  // Motor start-up sequence
+  if( rpmStartup == false ){
+  
+    rpmRef[0] = 4000;
+    rpmRef[1] = 4000;
+    rpmRef[2] = 4000;
+    rpmRef[3] = 4000;
+    
+    if( (rpm[0] > 3000) && (rpm[1] > 3000) && (rpm[2] > 3000) && (rpm[3] > 3000) ){
+      if( rpmTimerStarted == false ){
+        rpmStartupTimer = millis();
+        rpmTimerStarted = true;
+      }
+    }else{
+      rpmTimerStarted = false;  
+    }
+
+    if( millis() - rpmStartupTimer > 2000 && rpmTimerStarted ){
+      startupTiming = millis() - rpmStartupTimer;
+
+      startupRpm = map( startupTiming, 2000, 5000, 4000, 10000);
+      rpmRef[0] = startupRpm;
+      rpmRef[1] = startupRpm;
+      rpmRef[2] = startupRpm;
+      rpmRef[3] = startupRpm;
+      
+    }
+
+    if( millis() - rpmStartupTimer > 5000 && rpmTimerStarted )
+      rpmStartup = true;
+    
+  }else{
+    // Motor mixing (MMA)
+    rpmTimerStarted = false;
+    rpmRef[0] = altOffset - tau_yaw - tau_pitch + tau_roll;
+    rpmRef[1] = altOffset + tau_yaw - tau_pitch - tau_roll;
+    rpmRef[2] = altOffset - tau_yaw + tau_pitch - tau_roll;
+    rpmRef[3] = altOffset + tau_yaw + tau_pitch + tau_roll;   
+  }
+  
+  /* 
+   *  Motor speed RPM test
+   *  
+   *  Serial.print( micros() ); Serial.print(';'); */
+   
+  /* Serial.print( rpm[0] ); Serial.print('\t');
+  Serial.print( rpm[1] ); Serial.print('\t');
+  Serial.print( rpm[2] ); Serial.print('\t');
+  Serial.println( rpm[3] ); */
 
   /* Serial.print( RollRate.error ); Serial.print('\t');
   Serial.print( RollRate.output );Serial.print('\t');
   Serial.println( RollRate.integral );*/
-  
+
+
+  /* Serial.print( Altitude.error ); Serial.print('\t');
+  Serial.print( Altitude.integral );Serial.print('\t');
+  Serial.println( Altitude.output ); */
   
   
   /* Serial.print( millis() ); Serial.print(';');
@@ -380,6 +439,7 @@ void Stabilizer::motorMixing( ){
 
 void Stabilizer::motorRPMControl( void ){
 
+  static uint16_t tlmLostCount = 0;
   uint8_t tlmCount = 0;
   uint32_t now = micros();
 
@@ -397,27 +457,17 @@ void Stabilizer::motorRPMControl( void ){
 
   if( tlmCount == 4 ){
 
+    tlmLostCount = 0;
     /* uint32_t times = micros() - lastRpmControl;
     lastRpmControl = micros();
     Serial.print("us: ");
     Serial.println( times ); */
-
-    Serial.print( ESC1->tlm.rpm ); Serial.print('\t');
-    Serial.print( ESC2->tlm.rpm ); Serial.print('\t');
-    Serial.print( ESC3->tlm.rpm  ); Serial.print('\t');
-    Serial.println( ESC4->tlm.rpm );
-    
     
     // Control Motor RPM
-    rpm[0] = EMA( ESC1->tlm.rpm, rpm[0], 0.8 );
-    rpm[1] = EMA( ESC2->tlm.rpm, rpm[1], 0.8 );
-    rpm[2] = EMA( ESC3->tlm.rpm, rpm[2], 0.8 );
-    rpm[3] = EMA( ESC4->tlm.rpm, rpm[3], 0.8 );
-
-    rpmRef[0] = 3000;
-    rpmRef[1] = 3000;
-    rpmRef[2] = 3000;
-    rpmRef[3] = 3000;
+    rpm[0] = EMA( ESC1->tlm.rpm, rpm[0], 0.9 );
+    rpm[1] = EMA( ESC2->tlm.rpm, rpm[1], 0.9 );
+    rpm[2] = EMA( ESC3->tlm.rpm, rpm[2], 0.9 );
+    rpm[3] = EMA( ESC4->tlm.rpm, rpm[3], 0.9 );    
     
     // Calculate RPM controller 
     Motor1.run( rpmRef[0], rpm[0] );
@@ -437,6 +487,11 @@ void Stabilizer::motorRPMControl( void ){
     ESC3->tlm.timestamp = 0;
     ESC4->tlm.timestamp = 0;
       
+  }else{
+    tlmLostCount++;
+    if( tlmLostCount >= 10 ){
+      motorsOn = false;
+    }
   }
     
 }
@@ -518,7 +573,8 @@ void Stabilizer::getTelemetry( void ){
 }
 
 void Stabilizer::setHome(){
-	yawRef = angles[0];  
+	yawRef = angles[0]; 
+  Serial.println( yawRef ); 
 }
 
 

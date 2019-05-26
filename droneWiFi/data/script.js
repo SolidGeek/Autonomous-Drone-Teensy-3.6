@@ -121,7 +121,7 @@ function onWsMessage(event) {
 
 		roll.append(Date.now(), tlm[0]);
 		pitch.append(Date.now(), tlm[1]);
-		// yaw.append(Date.now(), tlm[2]);
+		yaw.append(Date.now(), tlm[2]);
 
 		document.getElementById('roll_value').value = tlm[0];
 		document.getElementById('pitch_value').value = tlm[1];
@@ -151,15 +151,29 @@ function onWsMessage(event) {
 
 		document.getElementById('voltage').value = tlm[4] + " V";
 
-		// Motor outputs
-		document.getElementsByName('motor1')[0].value = tlm[5];
-		document.getElementsByName('motor2')[0].value = tlm[6];
-		document.getElementsByName('motor3')[0].value = tlm[7];
-		document.getElementsByName('motor4')[0].value = tlm[8];
+		
 
 	}
 
-	else if( data.includes("CONFIG") ) {
+	else if( data.includes("RPM") ){
+
+		var tlm = [];
+
+		var items = data.split(" ");
+		items.shift(); // Remove "TELEMETRY" from array
+		items.pop(); // Remove empty last element
+
+		for (var i in items) {
+	    	tlm[i] = parseFloat( items[i] );
+		}
+
+		// Motor outputs
+		document.getElementsByName('motor1')[0].value = tlm[0];
+		document.getElementsByName('motor2')[0].value = tlm[1];
+		document.getElementsByName('motor3')[0].value = tlm[2];
+		document.getElementsByName('motor4')[0].value = tlm[3];
+
+	}else if( data.includes("CONFIG") ) {
 
 		console.log( data );
 
@@ -448,6 +462,13 @@ beginLog.onclick = function(){
 
 	}
 }
+
+document.addEventListener('keypress', function(event){
+	if( event.code == 'Space'){
+		sendCommand( "STOP")
+		logging = false;
+	}
+});
 
 start.onclick = function(){
 	sendCommand( "START" );

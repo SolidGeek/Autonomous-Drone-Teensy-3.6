@@ -35,9 +35,12 @@ public:
 	int16_t gyro[3] = {0}; // X, Y, Z
 	int16_t accel[3] = {0}; // X, Y, Z
 
+  // Yaw for drone reference
+  float yaw = 0.0;
+
   int16_t filtAccel[3] = {0}; // X, Y, Z
 	float height = 0.0;
-  bool newAlt = false;
+  float heightRef = 200.0;
 
 	Stabilizer( void );
 
@@ -80,6 +83,9 @@ public:
   float rpmRef[4] = {0.0};
   
 	bool motorsOn = false;
+  bool rpmStartup = false;
+  bool rpmTimerStarted = false;
+  uint32_t rpmStartupTimer = 0;
 
   // Inner loop controllers 
   Controller RollRate;
@@ -119,6 +125,7 @@ private:
 
 	// Yaw setpoint (for controlling front of drone)
 	float yawSetpoint = 0.0;
+  
 
 	// Roll and pitch setpoints for controlling position movement
 	float rollSetpoint = 0.0;
