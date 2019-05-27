@@ -1,3 +1,5 @@
+--- 25-05-2019 ---
+
 Roll: 		3,5 	0 	0
 Pitch: 		3,5 	0 	0
 Yaw:		14  	0 	40
@@ -5,3 +7,18 @@ Yaw:		14  	0 	40
 Roll rate: 	12	0 	60
 Pitch rate: 12 	0 	60
 Yaw rate: 	1,5	0	25
+
+Altitude:	2	0	10
+
+
+--- 26-05-2019 ---
+
+Roll: 		1,5 	0 	0
+Pitch: 		1,5 	-2 	0
+Yaw:		14  	0 	40
+
+Roll rate: 	13	0 	56
+Pitch rate: 13 	0 	56
+Yaw rate: 	1,5	0	20
+
+Altitude:	1,5	0	10
