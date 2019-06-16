@@ -36,21 +36,36 @@ void setup()
 
 void loop()
 {
-
   websocket.loop();
   server.handleClient();
     
-  if( Serial.available() > 0 ){
+  readUartData();
+}
 
+void readUartData() {
+  if( Serial.available() > 0 ){
     // Clear buffer to get rid of old data
     memset(buffer,0,sizeof(buffer));
-    
+
+    // Read data coming from Teensy to buffer
     Serial.readBytesUntil('\n', buffer, buffer_size);
-    if (WiFi.softAPgetStationNum() > 0) {
-      websocket.broadcastTXT(buffer);
-    }
+
+    // Send data over Websocket to PC
+    websocket.broadcastTXT(buffer);
   }
- 
+}
+
+// Process data being send from GUI by webSocket
+void readWebsocketData(uint8_t num, WStype_t type, uint8_t * payload, size_t len) {
+  if ( type == WStype_TEXT )
+  {
+    // Convert uint8_t pointer to char pointer
+    char * packet = (char *)payload;
+
+    // Send received packet over UART to Teensy
+    Serial.write( packet );
+    Serial.write( '\n' );
+  }
 }
 
 void initWebsocket( void ) {
@@ -82,23 +97,5 @@ void initSPIFFS( void ) {
   // Begin file-system
   if ( !SPIFFS.begin() ) {
     Serial.println("FIlE FAIILED");
-  }
-}
-
-// Process data being send from GUI by webSocket
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t len) {
-
-  // Pointer to hold reference to received payload
-  char * packet;
-  
-  if ( type == WStype_TEXT )
-  {
-    lastPackage = millis();
-
-    packet = (char *)payload;
-
-    // Afterwards, just pass the data on to the uStepper
-    Serial.println( packet );
-
   }
 }

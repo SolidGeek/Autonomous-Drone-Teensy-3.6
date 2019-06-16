@@ -33,6 +33,7 @@ public:
 
 	float angles[3] = {0}; // Yaw, roll, pitch
 	int16_t gyro[3] = {0}; // X, Y, Z
+  int16_t gyroFilt[3] = {0};
 	int16_t accel[3] = {0}; // X, Y, Z
 
   // Yaw for drone reference
@@ -45,6 +46,8 @@ public:
 	Stabilizer( void );
 
 	void setup( void );
+
+  float filter( float * buf, float x ); 
 
 	void calibrateIMU( void );	
 	bool readDMPAngles( void );
@@ -109,6 +112,9 @@ public:
   DShot * ESC2;
   DShot * ESC3;
   DShot * ESC4;
+
+  // Yaw home
+  float yawRef = 0.0;
   
 private:
 
@@ -120,8 +126,7 @@ private:
 
 
 
-	// Yaw home
-	float yawRef = 0.0;
+	
 
 	// Yaw setpoint (for controlling front of drone)
 	float yawSetpoint = 0.0;

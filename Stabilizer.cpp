@@ -33,10 +33,13 @@ Stabilizer::Stabilizer(){
 
   Pitch.setMaxIntegral(6.0);
   Roll.setMaxIntegral(6.0);
+  Yaw.setMaxIntegral(10.0);
 
   PitchRate.setMaxIntegral(10.0);
   RollRate.setMaxIntegral(10.0);
 
+
+  
 }
 
 void Stabilizer::setup() {
@@ -201,6 +204,10 @@ bool Stabilizer::readDMPAngles() {
     // Get gyro values for inner loop stabilization also
     IMU.dmpGetGyro( gyro, fifoBuffer );
 
+    gyroFilt[0] = EMA( gyro[0], gyroFilt[0], 0.25);
+    gyroFilt[1] = EMA( gyro[0], gyroFilt[0], 0.25);
+    gyroFilt[2] = EMA( gyro[0], gyroFilt[0], 0.25);
+    
     // Get accelelometer values 
     // IMU.dmpGetAccel( accel, fifoBuffer ); // Not used so lets save some processing
 
@@ -358,9 +365,9 @@ void Stabilizer::motorMixing( ){
 	float pitch_out = Pitch.getOutput();
 
 	// Inner controller loops
-	YawRate.run( yaw_out, gyro[2] );
-	RollRate.run( roll_out, -gyro[1] );
-	PitchRate.run( pitch_out, gyro[0] );
+	YawRate.run( yaw_out, gyroFilt[2] );
+	RollRate.run( roll_out, -gyroFilt[1] );
+	PitchRate.run( pitch_out, gyroFilt[0] );
 
 	// Output from inner controllers (in RPM)
 	float tau_roll  = RollRate.getOutput();
@@ -371,10 +378,10 @@ void Stabilizer::motorMixing( ){
   // Motor start-up sequence
   if( rpmStartup == false ){
   
-    rpmRef[0] = 4000;
-    rpmRef[1] = 4000;
-    rpmRef[2] = 4000;
-    rpmRef[3] = 4000;
+    rpmRef[0] = 3500;
+    rpmRef[1] = 3500;
+    rpmRef[2] = 3500;
+    rpmRef[3] = 3500;
     
     if( (rpm[0] > 3000) && (rpm[1] > 3000) && (rpm[2] > 3000) && (rpm[3] > 3000) ){
       if( rpmTimerStarted == false ){
@@ -388,7 +395,7 @@ void Stabilizer::motorMixing( ){
     if( millis() - rpmStartupTimer > 2000 && rpmTimerStarted ){
       startupTiming = millis() - rpmStartupTimer;
 
-      startupRpm = map( startupTiming, 2000, 5000, 4000, 10000);
+      startupRpm = map( startupTiming, 2000, 5000, 3500, config.hoverOffset);
       rpmRef[0] = startupRpm;
       rpmRef[1] = startupRpm;
       rpmRef[2] = startupRpm;
@@ -430,7 +437,9 @@ void Stabilizer::motorMixing( ){
   
   /* Serial.print( millis() ); Serial.print(';');
   Serial.println( angles[2] ); */
-  
+  /* Serial.print( gyroFilt[0]); Serial.print(',');
+  Serial.println( gyro[0]); // Serial.print(','); */
+  //Serial.println( gyroFilt[2]);
 	// Speeds 3, 4, 1, 2 because IMU is turned 90 degress x = y, and y = x
 
 	

@@ -20,6 +20,9 @@ var logType			= document.getElementById("logType");
 var measurementLog  = document.getElementById("measurement");
 
 var logging = false;
+var loggingStart = 0;
+var loggingStartTime = 4500;
+var loggingDuration = 15000;
 
 var configRead = false;
 
@@ -127,11 +130,15 @@ function onWsMessage(event) {
 		document.getElementById('pitch_value').value = tlm[1];
 		document.getElementById('yaw_value').value = tlm[2];
 
-		if( logging ){
+		
+
+		if( logging && (Date.now() - loggingStart) > loggingStartTime ){
+
+			console.log((Date.now() - loggingStart));
 
 			var type = logType.value;
 
-			measurementLog.value += Date.now() + ";";
+			measurementLog.value += (Date.now() - (loggingStart + loggingStartTime)) + ";";
 
 			if( type == 'roll')
 				measurementLog.value += tlm[0];
@@ -144,6 +151,10 @@ function onWsMessage(event) {
 
 			measurementLog.scrollTop = measurementLog.scrollHeight;
 
+		}
+
+		if( Date.now() - loggingStart > (loggingStartTime+loggingDuration)){
+			logging = false;
 		}
 
 		altitude.append( Date.now(), tlm[3]);
@@ -472,6 +483,9 @@ document.addEventListener('keypress', function(event){
 
 start.onclick = function(){
 	sendCommand( "START" );
+	loggingStart = Date.now();
+	logging = true;
+	measurementLog.value = "";
 }
 
 save.onclick = function()
