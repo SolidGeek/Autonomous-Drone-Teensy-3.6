@@ -27,6 +27,8 @@ class Stabilizer
 
 public:
 
+  uint32_t lastRpmAdjust = 0;
+
   uint32_t lastRpmControl = 0;
 
 	Settings config;
@@ -79,11 +81,14 @@ public:
 	int16_t s3 = 0;
 	int16_t s4 = 0;
 
+  int16_t speeds[4] = {0};
+  int16_t offsetSpeeds[4] = {0};
+
   // Actual RPM
   float rpm[4] = {0.0};
 
   // Wanted RPM
-  float rpmRef[4] = {0.0};
+  // float rpmRef[4] = {0.0};
   
 	bool motorsOn = false;
   bool rpmStartup = false;
@@ -105,7 +110,7 @@ public:
   Controller Motor1;
   Controller Motor2;
   Controller Motor3;
-  Controller Motor4;
+  Controller Motor4; 
 
     // Motor objects
   DShot * ESC1;

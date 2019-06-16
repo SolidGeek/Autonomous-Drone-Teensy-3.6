@@ -8,13 +8,13 @@ Stabilizer::Stabilizer(){
   ESC4 = new DShot(4);
 
   /* Motor speed controllers */
-  Motor1.setConstants(0.3, 1.5, 0);
+  /* Motor1.setConstants(0.3, 1.5, 0);
   Motor2.setConstants(0.3, 1.5, 0);
   Motor3.setConstants(0.3, 1.5, 0);
-  Motor4.setConstants(0.3, 1.5, 0);
+  Motor4.setConstants(0.3, 1.5, 0); */
 
   /* Integral windup */
-  Motor1.setMaxIntegral(600.0);
+  /* Motor1.setMaxIntegral(600.0);
   Motor2.setMaxIntegral(600.0);
   Motor3.setMaxIntegral(600.0);
   Motor4.setMaxIntegral(600.0);
@@ -25,7 +25,7 @@ Stabilizer::Stabilizer(){
   Motor1.startupIntegral = true;
   Motor2.startupIntegral = true;
   Motor3.startupIntegral = true;
-  Motor4.startupIntegral = true;
+  Motor4.startupIntegral = true;*/
 
   // Altitude.startupIntegral = true;
   // Altitude.absIntegral = true;
@@ -38,8 +38,6 @@ Stabilizer::Stabilizer(){
   PitchRate.setMaxIntegral(10.0);
   RollRate.setMaxIntegral(10.0);
 
-
-  
 }
 
 void Stabilizer::setup() {
@@ -324,7 +322,7 @@ void Stabilizer::setIMUOffsets( void ) {
 void Stabilizer::motorMixing( ){
 
   uint32_t startupTiming = 0;
-  float startupRpm = 0;
+  int16_t startupSpeed = 0;
 
 	// Read angles from DMP (digital motion processor)
 	readDMPAngles();
@@ -336,7 +334,7 @@ void Stabilizer::motorMixing( ){
   
   Altitude.run( heightRef, height );
     
-  float altOffset = Altitude.getOutput() + (float)config.hoverOffset; // In RPM
+  float altOffset = Altitude.getOutput() + (float)config.hoverOffset; // In DSHOT
 
   // Serial.println( altOffset );
 
@@ -378,10 +376,10 @@ void Stabilizer::motorMixing( ){
   // Motor start-up sequence
   if( rpmStartup == false ){
   
-    rpmRef[0] = 3500;
-    rpmRef[1] = 3500;
-    rpmRef[2] = 3500;
-    rpmRef[3] = 3500;
+    speeds[0] = 200;
+    speeds[1] = 200;
+    speeds[2] = 200;
+    speeds[3] = 200;
     
     if( (rpm[0] > 3000) && (rpm[1] > 3000) && (rpm[2] > 3000) && (rpm[3] > 3000) ){
       if( rpmTimerStarted == false ){
@@ -395,11 +393,11 @@ void Stabilizer::motorMixing( ){
     if( millis() - rpmStartupTimer > 2000 && rpmTimerStarted ){
       startupTiming = millis() - rpmStartupTimer;
 
-      startupRpm = map( startupTiming, 2000, 5000, 3500, config.hoverOffset);
-      rpmRef[0] = startupRpm;
-      rpmRef[1] = startupRpm;
-      rpmRef[2] = startupRpm;
-      rpmRef[3] = startupRpm;
+      startupSpeed = map( startupTiming, 2000, 5000, 200, config.hoverOffset);
+      speeds[0] = startupSpeed;
+      speeds[1] = startupSpeed;
+      speeds[2] = startupSpeed;
+      speeds[3] = startupSpeed;
       
     }
 
@@ -409,10 +407,10 @@ void Stabilizer::motorMixing( ){
   }else{
     // Motor mixing (MMA)
     rpmTimerStarted = false;
-    rpmRef[0] = altOffset - tau_yaw - tau_pitch + tau_roll;
-    rpmRef[1] = altOffset + tau_yaw - tau_pitch - tau_roll;
-    rpmRef[2] = altOffset - tau_yaw + tau_pitch - tau_roll;
-    rpmRef[3] = altOffset + tau_yaw + tau_pitch + tau_roll;   
+    speeds[0] = altOffset - tau_yaw - tau_pitch + tau_roll;
+    speeds[1] = altOffset + tau_yaw - tau_pitch - tau_roll;
+    speeds[2] = altOffset - tau_yaw + tau_pitch - tau_roll;
+    speeds[3] = altOffset + tau_yaw + tau_pitch + tau_roll;   
   }
   
   /* 
@@ -449,6 +447,7 @@ void Stabilizer::motorMixing( ){
 void Stabilizer::motorRPMControl( void ){
 
   static uint16_t tlmLostCount = 0;
+  float rpmAverage = 0.0;
   uint8_t tlmCount = 0;
   uint32_t now = micros();
 
@@ -473,22 +472,45 @@ void Stabilizer::motorRPMControl( void ){
     Serial.println( times ); */
     
     // Control Motor RPM
-    rpm[0] = EMA( ESC1->tlm.rpm, rpm[0], 0.9 );
-    rpm[1] = EMA( ESC2->tlm.rpm, rpm[1], 0.9 );
-    rpm[2] = EMA( ESC3->tlm.rpm, rpm[2], 0.9 );
-    rpm[3] = EMA( ESC4->tlm.rpm, rpm[3], 0.9 );    
+    rpm[0] = EMA( ESC1->tlm.rpm, rpm[0], 0.2 );
+    rpm[1] = EMA( ESC2->tlm.rpm, rpm[1], 0.2 );
+    rpm[2] = EMA( ESC3->tlm.rpm, rpm[2], 0.2 );
+    rpm[3] = EMA( ESC4->tlm.rpm, rpm[3], 0.2 );    
+
+    /* rpmAverage = (rpm[0] + rpm[1] + rpm[2] + rpm[3])/4.0;
+
+    if( millis() - lastRpmAdjust > 200 && rpmAverage > 2000.0){
+      lastRpmAdjust = millis();  
+
+      for( uint8_t i = 0; i < 4; i++ ){
+
+        float rpmError = rpmAverage - rpm[i];
+
+        if( rpmError < 25 && rpmError > -25 )
+          offsetSpeeds[i] = offsetSpeeds[i];
+        else if( rpmError > 0 )
+          offsetSpeeds[i] += 1;  
+        else
+          offsetSpeeds[i] -= 1;
+  
+        offsetSpeeds[i] = constrain(offsetSpeeds[i], -50, 50);
+       
+      }
+    }*/
+
+    
     
     // Calculate RPM controller 
-    Motor1.run( rpmRef[0], rpm[0] );
+    /*  Motor1.run( rpmRef[0], rpm[0] );
     Motor2.run( rpmRef[1], rpm[1] );
     Motor3.run( rpmRef[2], rpm[2] );
-    Motor4.run( rpmRef[3], rpm[3] );
+    Motor4.run( rpmRef[3], rpm[3] ); */ 
 
     // Calculate actual DShot output signal
-    s1 = constrain( Motor1.getOutput(), 1, 2000 ) ; 
+    /* s1 = constrain( Motor1.getOutput(), 1, 2000 ) ; 
     s2 = constrain( Motor2.getOutput(), 1, 2000 ) ; 
     s3 = constrain( Motor3.getOutput(), 1, 2000 ) ; 
-    s4 = constrain( Motor4.getOutput(), 1, 2000 ) ; 
+    s4 = constrain( Motor4.getOutput(), 1, 2000 ) ; */
 
     // Reset telemetry timestamp such that we run at same frequency as DShot
     ESC1->tlm.timestamp = 0;
@@ -510,10 +532,10 @@ void Stabilizer::setMotorSpeeds( void ){
 
 	if( motorsOn == true ){
 
-		ESC1->setThrottle( s1 );
-		ESC2->setThrottle( s2 );
-		ESC3->setThrottle( s3 );
-		ESC4->setThrottle( s4 );
+		ESC1->setThrottle( speeds[0] + offsetSpeeds[0] );
+		ESC2->setThrottle( speeds[1] + offsetSpeeds[1] );
+		ESC3->setThrottle( speeds[2] + offsetSpeeds[2] );
+		ESC4->setThrottle( speeds[3] + offsetSpeeds[3] );
 
 	}else{
 

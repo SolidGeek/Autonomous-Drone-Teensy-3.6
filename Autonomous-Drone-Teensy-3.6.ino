@@ -320,11 +320,11 @@ void sendTelemetry( ){
   }else{
     
     CC.addToBuffer("RPM");
-    
-    CC.addToBuffer( FC.rpm[0] );
-    CC.addToBuffer( FC.rpm[1] );
-    CC.addToBuffer( FC.rpm[2] );
-    CC.addToBuffer( FC.rpm[3] ); 
+   
+    CC.addToBuffer( FC.speeds[0] );
+    CC.addToBuffer( FC.speeds[1] );
+    CC.addToBuffer( FC.speeds[2] );
+    CC.addToBuffer( FC.speeds[3] ); 
     
   }
 

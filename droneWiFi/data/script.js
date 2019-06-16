@@ -90,7 +90,7 @@ function sendCommand( command, param = [] ){
 	}
 
 	if(websocket.readyState == 1){
-		console.log( gcode );
+		// console.log( gcode );
 		websocket.send( gcode + " " );
 	}
 }
@@ -134,7 +134,7 @@ function onWsMessage(event) {
 
 		if( logging && (Date.now() - loggingStart) > loggingStartTime ){
 
-			console.log((Date.now() - loggingStart));
+			// console.log((Date.now() - loggingStart));
 
 			var type = logType.value;
 
@@ -186,7 +186,7 @@ function onWsMessage(event) {
 
 	}else if( data.includes("CONFIG") ) {
 
-		console.log( data );
+		// console.log( data );
 
 		var settings = [];
 
@@ -197,7 +197,7 @@ function onWsMessage(event) {
 	    	settings[i] = parseFloat( items[i] );
 		}
 		
-		console.log( settings );
+		// console.log( settings );
 
 		document.getElementsByName('roll_p')[0].value = settings[0];
 		document.getElementsByName('roll_i')[0].value = settings[1];
