@@ -24,6 +24,18 @@ volatile uint32_t countDmp = 0; 	// Number of received DMP interrupts. Used to d
 volatile bool newDmpData = false;	// True if new data from DMP hasn't been read yet.
 volatile uint32_t lastDmpData = 0;
 
+// Timing 
+uint32_t timing = 0;
+uint32_t junkTimer = 0;
+uint32_t rpmTimer = 0;
+uint32_t mmaTimer = 0;
+
+uint32_t junkInterval = 5000; // 200 Hz, shifted 2500 microseconds
+uint32_t rpmInterval = 2500;
+uint32_t mmaInterval = 5000; // 200 Hz
+
+uint8_t timeAvailable = 0;
+
 void setup() {
 
 	// Begin Serial for DEBUGGING
@@ -42,29 +54,18 @@ void setup() {
 
   uint32_t settlingTimer = millis();
 	// Makes sure the DMP values have settled (2 seconds)
-	while( millis() - settlingTimer < 5000 ){
+	while( (millis() - settlingTimer < 5000) || ( FC.angles[1] > 1.0 && FC.angles[1] < -1.0 && FC.angles[2] > 1.0 && FC.angles[2] < -1.0) ){
 		
 	  FC.readDMPAngles();
     delayMicroseconds(2500); // 200 Hz
+
+    FC.anglesSettled = true;
     
 	}
 	// Set home (current real world yaw = drones zero reference)
 	FC.setHome();
 	
 }
-
-uint32_t testFreq = 0;
-uint32_t timing = 0;
-
-uint32_t junkTimer = 0;
-uint32_t rpmTimer = 0;
-uint32_t mmaTimer = 0;
-
-uint32_t junkInterval = 5000; // 200 Hz, shifted 2500 microseconds
-uint32_t rpmInterval = 2500;
-uint32_t mmaInterval = 5000; // 200 Hz
-
-uint8_t timeAvailable = 0;
 
 void loop() {
 
@@ -90,13 +91,8 @@ void loop() {
   if( timing >= 2200 && (micros() - rpmTimer >= rpmInterval ) ){
     rpmTimer = micros() + (2200 - timing); // Adjust the rpmTimer such that we always run the rpm-thingy at the same time. 
 
-    
     FC.getTelemetry();
     FC.motorRPMControl();
-    
-
-    // Serial.println( micros() - testFreq ); 
-    // testFreq = micros(); 
      
   }
 
@@ -309,7 +305,7 @@ void sendTelemetry( ){
   	// Add roll, pitch and yaw
   	CC.addToBuffer( FC.angles[1] ); // Roll
   	CC.addToBuffer( FC.angles[2] ); // Pitch
-  	CC.addToBuffer( FC.yaw ); // Yaw
+  	CC.addToBuffer( FC.angles[0] ); // Yaw
     
   	// Add altitude
   	CC.addToBuffer( FC.height );

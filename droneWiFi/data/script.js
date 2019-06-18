@@ -124,7 +124,7 @@ function onWsMessage(event) {
 
 		roll.append(Date.now(), tlm[0]);
 		pitch.append(Date.now(), tlm[1]);
-		yaw.append(Date.now(), tlm[2]);
+		// yaw.append(Date.now(), tlm[2]);
 
 		document.getElementById('roll_value').value = tlm[0];
 		document.getElementById('pitch_value').value = tlm[1];

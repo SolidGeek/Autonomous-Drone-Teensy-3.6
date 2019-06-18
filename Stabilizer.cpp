@@ -27,9 +27,10 @@ Stabilizer::Stabilizer(){
   Motor3.startupIntegral = true;
   Motor4.startupIntegral = true;
 
-  // Altitude.startupIntegral = true;
-  // Altitude.absIntegral = true;
-  Altitude.setMaxIntegral(80.0);
+  Altitude.startupIntegral = true;
+  Altitude.absIntegral = true;
+  Altitude.setMaxIntegral(2000);
+  Altitude.setMaxOutput(500);
 
   Pitch.setMaxIntegral(6.0);
   Roll.setMaxIntegral(6.0);
@@ -64,6 +65,12 @@ void Stabilizer::setup() {
   // Init TOF for height measurement
   initTOF();
 
+  pinMode( 15, OUTPUT );
+  digitalWrite( 15, LOW ); // Set CS low to enable SPI communication 
+
+  pixy.init();
+  Serial.println( pixy.changeProg("line") ); 
+
 	// Setup of motor directions
 	ESC1->setDirection(false);
 	ESC2->setDirection(true);
@@ -94,11 +101,11 @@ void Stabilizer::initTOF( void ){
 		#endif
 	}
 
-	TOF.setDistanceMode(VL53L1X::Long);
-	TOF.setMeasurementTimingBudget(50000); // 50000 us (50 ms) 
+	TOF.setDistanceMode(VL53L1X::Short);
+	TOF.setMeasurementTimingBudget(20000); // 50000 us (50 ms) 
 
 	// Start continuous readings at a rate of one measurement every 50 ms
-	TOF.startContinuous(50);
+	TOF.startContinuous(20);
 }
 
 void Stabilizer::initIMU(){
@@ -201,15 +208,43 @@ bool Stabilizer::readDMPAngles() {
 		angles[1] *= (180 / M_PI);
 		angles[2] *= (180 / M_PI);
 
+    anglesFilt[0] = EMA( angles[0], anglesFilt[0], 0.25 );
+    anglesFilt[1] = EMA( angles[1], anglesFilt[1], 0.25 );
+    anglesFilt[2] = EMA( angles[2], anglesFilt[2], 0.25 );
+    
     // Get gyro values for inner loop stabilization also
     IMU.dmpGetGyro( gyro, fifoBuffer );
 
-    gyroFilt[0] = EMA( gyro[0], gyroFilt[0], 0.25);
-    gyroFilt[1] = EMA( gyro[0], gyroFilt[0], 0.25);
-    gyroFilt[2] = EMA( gyro[0], gyroFilt[0], 0.25);
+    gyroTemp[0] = (float)gyro[0] / 100000.0; // Keep precision but not
+    gyroTemp[1] = (float)gyro[1] / 100000.0;
+    gyroTemp[2] = (float)gyro[2] / 100000.0;
+    
+    gyroFilt[0] = EMA( gyroTemp[0], gyroFilt[0], 0.15);
+    gyroFilt[1] = EMA( gyroTemp[1], gyroFilt[1], 0.15);
+    gyroFilt[2] = EMA( gyroTemp[2], gyroFilt[2], 0.15);
     
     // Get accelelometer values 
-    // IMU.dmpGetAccel( accel, fifoBuffer ); // Not used so lets save some processing
+
+    /* IMU.dmpGetAccel( accel, fifoBuffer ); // Not used so lets save some processing
+
+    if( anglesSettled == true ){
+
+      accelDir[0] = accel[0] - (int16_t)(8192.0 * angles[1] * DEGTORAD); 
+      accelDir[1] = accel[1] - (int16_t)(8192.0 * angles[2] * DEGTORAD); 
+  
+      float accelDirX = accelDir[0]; // EMA( accelDirX, accelDir[0], 0.01 );
+      float accelDirY = accelDir[0]; // EMA( accelDirY, accelDir[1], 0.01 ); 
+  
+      uint32_t deltaT = micros() - velocityTimer; 
+      velocityTimer = micros();
+      
+      velocity[0] +=  accelDirX * (float)(deltaT)/1000000.0;
+      velocity[1] +=  accelDirY * (float)(deltaT)/1000000.0;
+    
+      velocity[0] *= 0.995;
+      velocity[1] *= 0.995;
+
+    }*/ 
 
 		return true;
 
@@ -331,10 +366,10 @@ void Stabilizer::motorMixing( ){
 
 	// Read altitude from TOF sensor
 	readAltitude();
-
-  
-  
   Altitude.run( heightRef, height );
+
+
+  positionControl(); 
     
   float altOffset = Altitude.getOutput() + (float)config.hoverOffset; // In RPM
 
@@ -378,12 +413,12 @@ void Stabilizer::motorMixing( ){
   // Motor start-up sequence
   if( rpmStartup == false ){
   
-    rpmRef[0] = 3500;
-    rpmRef[1] = 3500;
-    rpmRef[2] = 3500;
-    rpmRef[3] = 3500;
+    rpmRef[0] = 2000;
+    rpmRef[1] = 2000;
+    rpmRef[2] = 2000;
+    rpmRef[3] = 2000;
     
-    if( (rpm[0] > 3000) && (rpm[1] > 3000) && (rpm[2] > 3000) && (rpm[3] > 3000) ){
+    if( (rpm[0] > 1500) && (rpm[1] > 1500) && (rpm[2] > 1500) && (rpm[3] > 1500) ){
       if( rpmTimerStarted == false ){
         rpmStartupTimer = millis();
         rpmTimerStarted = true;
@@ -395,7 +430,7 @@ void Stabilizer::motorMixing( ){
     if( millis() - rpmStartupTimer > 2000 && rpmTimerStarted ){
       startupTiming = millis() - rpmStartupTimer;
 
-      startupRpm = map( startupTiming, 2000, 5000, 3500, config.hoverOffset);
+      startupRpm = map( startupTiming, 2000, 5000, 2000, config.hoverOffset);
       rpmRef[0] = startupRpm;
       rpmRef[1] = startupRpm;
       rpmRef[2] = startupRpm;
@@ -473,10 +508,10 @@ void Stabilizer::motorRPMControl( void ){
     Serial.println( times ); */
     
     // Control Motor RPM
-    rpm[0] = EMA( ESC1->tlm.rpm, rpm[0], 0.9 );
-    rpm[1] = EMA( ESC2->tlm.rpm, rpm[1], 0.9 );
-    rpm[2] = EMA( ESC3->tlm.rpm, rpm[2], 0.9 );
-    rpm[3] = EMA( ESC4->tlm.rpm, rpm[3], 0.9 );    
+    rpm[0] = EMA( ESC1->tlm.rpm, rpm[0], 0.3 );
+    rpm[1] = EMA( ESC2->tlm.rpm, rpm[1], 0.3 );
+    rpm[2] = EMA( ESC3->tlm.rpm, rpm[2], 0.3 );
+    rpm[3] = EMA( ESC4->tlm.rpm, rpm[3], 0.3 );    
     
     // Calculate RPM controller 
     Motor1.run( rpmRef[0], rpm[0] );
@@ -552,7 +587,7 @@ void Stabilizer::readAltitude( void ){
 
 	if( TOF.dataReady() ){
 
-    height = EMA( (float)TOF.read() - ALT_OFFSET, height, 0.8 );
+    height = EMA( (float)TOF.read() - ALT_OFFSET, height, 0.5 );
     if ( height < 0.0 )
       height = 0.0;
 
@@ -601,6 +636,43 @@ float Stabilizer::batteryVoltage( void ){
 	}
 	
 	return 0.0;
+}
+
+void Stabilizer::positionControl(){
+
+  int8_t a;
+    int8_t b;
+    float angle1 = 0;
+    float angle2 = 0;
+  int8_t roll = 0;
+  int8_t roll_pos = 0; 
+ 
+  pixy.line.getMainFeatures(LINE_ALL_FEATURES, false);
+
+  if (pixy.line.numVectors){
+
+    pixy.line.vectors->print();
+
+    a = pixy.line.vectors->m_y0 - pixy.line.vectors->m_y1;
+    b = pixy.line.vectors->m_x0 - pixy.line.vectors->m_x1;
+    angle1 = atan2(b,a);
+    angle2 = angle1 * (180 / 3.1415);
+    
+    if (pixy.line.vectors->m_x0 > pixy.line.vectors->m_x1){
+      roll = pixy.line.vectors->m_x0 - 0.5*b;
+      }
+    else {
+      roll = pixy.line.vectors->m_x0 + 0.5*b;
+      }
+
+     roll_pos = 39 - roll;
+    
+
+    Serial.println("Angle is:");
+    Serial.println(angle2);
+    Serial.println("Roll is:");
+    Serial.println(roll_pos);
+  }
 }
 
 float Stabilizer::EMA( float newSample, float oldSample, float alpha ){

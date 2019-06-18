@@ -9,16 +9,20 @@
 #include "Settings.h"
 #include "Controller.h"
 #include <VL53L1X.h> // Height sensor library
+#include <SPI.h>  
+#include <Pixy2SPI_SS.h> // Positioning camera library
 
 #define _DEBUG
 
 #define DSHOT_TLM_INTERVAL 2500 // 2500 us = 400 Hz
-#define ALT_OFFSET 50.0f
+#define ALT_OFFSET 80.0f
 
 #define TLM1 Serial2
 #define TLM2 Serial3
 #define TLM3 Serial4
 #define TLM4 Serial5
+
+#define DEGTORAD 0.017453293
 
 /* Stabilizer class */
 
@@ -31,17 +35,27 @@ public:
 
 	Settings config;
 
-	float angles[3] = {0}; // Yaw, roll, pitch
-	int16_t gyro[3] = {0}; // X, Y, Z
-  int16_t gyroFilt[3] = {0};
-	int16_t accel[3] = {0}; // X, Y, Z
+  Pixy2SPI_SS pixy;
 
+  bool anglesSettled = false;
+
+	float angles[3] = {0}; // Yaw, roll, pitch
+  float anglesFilt[3] = {0};
+	int32_t gyro[3] = {0}; // X, Y, Z
+  float gyroTemp[3] = {0};
+  float gyroFilt[3] = {0};
+	int16_t accel[3] = {0}; // X, Y, Z
+  int16_t accelDir[3] = {0};
+
+  float velocity[2] = {0};
+  uint32_t velocityTimer = 0;
+  
   // Yaw for drone reference
   float yaw = 0.0;
 
   int16_t filtAccel[3] = {0}; // X, Y, Z
 	float height = 0.0;
-  float heightRef = 200.0;
+  float heightRef = 600.0;
 
 	Stabilizer( void );
 
@@ -72,6 +86,8 @@ public:
 	void setHome( void );
 
 	float batteryVoltage( void );
+
+  void positionControl( void );
 
 	// Motor speeds 
 	int16_t s1 = 0;
