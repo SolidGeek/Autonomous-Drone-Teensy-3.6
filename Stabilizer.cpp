@@ -39,7 +39,15 @@ Stabilizer::Stabilizer(){
   PitchRate.setMaxIntegral(10.0);
   RollRate.setMaxIntegral(10.0);
 
+  RollPos.setMaxIntegral(25.0);
+  RollPos.setMaxOutput(3);
+  RollPos.startupIntegral = true;
+  PitchPos.setMaxIntegral(25.0);
+  PitchPos.setMaxOutput(3);
+  PitchPos.startupIntegral = true;
 
+  RollPos.setConstants(0.1, 0.03, 0);
+  PitchPos.setConstants(0.1, 0.03, 0);
   
 }
 
@@ -65,11 +73,12 @@ void Stabilizer::setup() {
   // Init TOF for height measurement
   initTOF();
 
-  pinMode( 15, OUTPUT );
-  digitalWrite( 15, LOW ); // Set CS low to enable SPI communication 
 
+  // PIN 15 as slave select (SS)
   pixy.init();
-  Serial.println( pixy.changeProg("line") ); 
+  delay(200);
+  pixy.changeProg("line");
+  
 
 	// Setup of motor directions
 	ESC1->setDirection(false);
@@ -93,19 +102,14 @@ void Stabilizer::setup() {
 
 void Stabilizer::initTOF( void ){
 
-	TOF.setTimeout(500);
+  if (!TOF.begin())
+  {
+    #ifdef _DEBUG
+      Serial.println("No altitude sensor");
+    #endif
+  }
 
-	if (!TOF.init()){
-		#ifdef _DEBUG
-			Serial.println("No altitude sensor");
-		#endif
-	}
-
-	TOF.setDistanceMode(VL53L1X::Short);
-	TOF.setMeasurementTimingBudget(20000); // 50000 us (50 ms) 
-
-	// Start continuous readings at a rate of one measurement every 50 ms
-	TOF.startContinuous(20);
+	TOF.setDistanceModeShort();
 }
 
 void Stabilizer::initIMU(){
@@ -367,9 +371,6 @@ void Stabilizer::motorMixing( ){
 	// Read altitude from TOF sensor
 	readAltitude();
   Altitude.run( heightRef, height );
-
-
-  positionControl(); 
     
   float altOffset = Altitude.getOutput() + (float)config.hoverOffset; // In RPM
 
@@ -388,6 +389,15 @@ void Stabilizer::motorMixing( ){
 	}
 	else
 		yaw = droneYaw; 
+  
+  getCamPosition();
+
+  RollPos.run( 0, deltaRoll ); 
+  PitchPos.run( 0, deltaPitch ); 
+
+  float rollpos_out = RollPos.getOutput();
+  float pitchpos_out = PitchPos.getOutput();
+
 
 	// Outer controller loops
 	Yaw.run( yawSetpoint, yaw );
@@ -449,6 +459,8 @@ void Stabilizer::motorMixing( ){
     rpmRef[2] = altOffset - tau_yaw + tau_pitch - tau_roll;
     rpmRef[3] = altOffset + tau_yaw + tau_pitch + tau_roll;   
   }
+
+  // Serial.println(angles[1]);
   
   /* 
    *  Motor speed RPM test
@@ -585,13 +597,19 @@ void Stabilizer::armMotors( void ){
 
 void Stabilizer::readAltitude( void ){
 
-	if( TOF.dataReady() ){
+  TOF.startRanging(); //Write configuration bytes to initiate measurement
+
+  height = TOF.getDistance() - ALT_OFFSET; //Get the result of the measurement from the sensor
+
+  TOF.stopRanging();
+
+	/* if( TOF.dataReady() ){
 
     height = EMA( (float)TOF.read() - ALT_OFFSET, height, 0.5 );
     if ( height < 0.0 )
       height = 0.0;
 
-	}
+	}*/
 
 }
 
@@ -638,41 +656,45 @@ float Stabilizer::batteryVoltage( void ){
 	return 0.0;
 }
 
-void Stabilizer::positionControl(){
-
+void Stabilizer::getCamPosition( void ){
+  
   int8_t a;
-    int8_t b;
-    float angle1 = 0;
-    float angle2 = 0;
-  int8_t roll = 0;
-  int8_t roll_pos = 0; 
+  int8_t b;
+
+  int16_t tempRoll = 0;
+  int16_t tempPitch = 0;
  
   pixy.line.getMainFeatures(LINE_ALL_FEATURES, false);
 
-  if (pixy.line.numVectors){
+  if ( pixy.line.numVectors > 0 ){
 
     pixy.line.vectors->print();
 
-    a = pixy.line.vectors->m_y0 - pixy.line.vectors->m_y1;
-    b = pixy.line.vectors->m_x0 - pixy.line.vectors->m_x1;
-    angle1 = atan2(b,a);
-    angle2 = angle1 * (180 / 3.1415);
+    p1.y = pixy.line.vectors->m_y0; p1.x = pixy.line.vectors->m_x0; 
+    p2.y = pixy.line.vectors->m_y1; p2.x = pixy.line.vectors->m_x1; 
     
-    if (pixy.line.vectors->m_x0 > pixy.line.vectors->m_x1){
-      roll = pixy.line.vectors->m_x0 - 0.5*b;
-      }
-    else {
-      roll = pixy.line.vectors->m_x0 + 0.5*b;
-      }
-
-     roll_pos = 39 - roll;
+    a = p1.y - p2.y;
+    b = p1.x - p2.x;
     
+    vectorAngle = atan2(b,a) * (180 / 3.1415);
+    
+    if ( p1.x > p2.x )
+      tempRoll = 39 - ( (float)p1.x - 0.5 * b );
+    else
+      tempRoll = 39 - ( (float)p1.x + 0.5 * b );
 
-    Serial.println("Angle is:");
-    Serial.println(angle2);
-    Serial.println("Roll is:");
-    Serial.println(roll_pos);
+    if ( p1.y > p2.y )
+      tempPitch = 25.5 - ( (float)p1.y - 0.5 * a );
+    else
+      tempPitch = 25.5 - ( (float)p1.y + 0.5 * a );
+
+    deltaPitch = EMA( tempPitch, deltaPitch, 0.2 );
+    deltaRoll = EMA( tempRoll, deltaRoll, 0.2 );
+
+    // Serial.println( pixy.line.vectors->m_index );
+      
   }
+
 }
 
 float Stabilizer::EMA( float newSample, float oldSample, float alpha ){

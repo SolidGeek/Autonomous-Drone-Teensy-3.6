@@ -41,6 +41,8 @@ void setup() {
 	// Begin Serial for DEBUGGING
 	Serial.begin(115200);
 
+  Serial.println("-- STARTUP --");
+
 	// Setup wireless communication
 	CC.setup();
 
@@ -62,6 +64,9 @@ void setup() {
     FC.anglesSettled = true;
     
 	}
+
+  Serial.println("DMP settled");
+ 
 	// Set home (current real world yaw = drones zero reference)
 	FC.setHome();
 	
@@ -110,6 +115,7 @@ void loop() {
 
     // Motor mixing algorithm and controller
     FC.motorMixing();
+
 
   }
 
@@ -174,6 +180,11 @@ void commandList(){
 		FC.motorsOn = false;
     FC.rpmStartup = false;
 	}
+
+  if ( CC.check( "LIGHT" ) ){
+    // FC.lightsOn = !FC.lightsOn;
+    // FC.pixy.setLamp(FC.lightsOn, false);  
+  }
 
 	if( CC.check( "ROLL" ) ){
 
@@ -295,16 +306,16 @@ void sendConfig() {
 
 void sendTelemetry( ){
 
-  static bool tlmType = false;
+  static uint8_t tlmType = 0;
   
 	CC.clearBuffer();
 
-  if( tlmType == true ){
+  if( tlmType == 0 ){
   	CC.addToBuffer("TELEMETRY");
   
   	// Add roll, pitch and yaw
-  	CC.addToBuffer( FC.angles[1] ); // Roll
-  	CC.addToBuffer( FC.angles[2] ); // Pitch
+  	CC.addToBuffer( FC.RollPos.getOutput() ); // Roll
+  	CC.addToBuffer( FC.PitchPos.getOutput() ); // Pitch
   	CC.addToBuffer( FC.angles[0] ); // Yaw
     
   	// Add altitude
@@ -313,18 +324,34 @@ void sendTelemetry( ){
   	// Add battery voltage
   	CC.addToBuffer( FC.batteryVoltage() );
   
-  }else{
+  }else if( tlmType == 1 ) {
     
     CC.addToBuffer("RPM");
     
-    CC.addToBuffer( FC.rpm[0] );
-    CC.addToBuffer( FC.rpm[1] );
-    CC.addToBuffer( FC.rpm[2] );
-    CC.addToBuffer( FC.rpm[3] ); 
+    CC.addToBuffer( (int16_t)FC.rpm[0] );
+    CC.addToBuffer( (int16_t)FC.rpm[1] );
+    CC.addToBuffer( (int16_t)FC.rpm[2] );
+    CC.addToBuffer( (int16_t)FC.rpm[3] ); 
+    
+  }else if( tlmType == 2 ) {
+    
+    CC.addToBuffer("POS");
+    
+    CC.addToBuffer( FC.p1.x );
+    CC.addToBuffer( FC.p1.y  );
+    CC.addToBuffer( FC.p2.x );
+    CC.addToBuffer( FC.p2.y  ); 
+    
+    CC.addToBuffer( FC.deltaRoll );
+    CC.addToBuffer( FC.deltaPitch );
+    CC.addToBuffer( (int16_t) FC.vectorAngle );
     
   }
 
-  tlmType = !tlmType;
+  tlmType++;
+
+  if( tlmType > 2 )
+    tlmType = 0;
 
 	CC.sendBuffer();
 

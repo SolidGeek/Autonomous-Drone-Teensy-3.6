@@ -39,6 +39,16 @@ header #status{
     border: none;
 }
 
+#posBar{
+	position: relative;
+	top: -40px;
+	padding: 0 5px;
+}
+
+#posBar>span{
+	padding: 0 10px;
+}
+
 div.smoothie-chart-tooltip {
 	background: #fff;
 	padding: 1em;

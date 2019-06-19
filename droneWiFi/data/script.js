@@ -18,6 +18,11 @@ var save 			= document.getElementById("save");
 var beginLog		= document.getElementById("beginLog");
 var logType			= document.getElementById("logType");
 var measurementLog  = document.getElementById("measurement");
+var posVector 		= document.getElementById("pos_vector");
+var posX			= document.getElementById("pos_x");
+var posY			= document.getElementById("pos_y");
+var posAngle		= document.getElementById("pos_angle");
+var lights			= document.getElementById("lights");
 
 var logging = false;
 var loggingStart = 0;
@@ -184,7 +189,34 @@ function onWsMessage(event) {
 		document.getElementsByName('motor3')[0].value = tlm[2];
 		document.getElementsByName('motor4')[0].value = tlm[3];
 
-	}else if( data.includes("CONFIG") ) {
+	}
+
+	else if( data.includes("POS") ){
+
+		var tlm = [];
+
+		var items = data.split(" ");
+		items.shift(); // Remove "POS" from array
+		items.pop(); // Remove empty last element
+
+		for (var i in items) {
+	    	tlm[i] = parseFloat( items[i] );
+		}
+
+		console.log(tlm);
+
+		posVector.setAttribute("x2", (tlm[0]/78)*100 );
+		posVector.setAttribute("y2", ((51-tlm[1])/51)*100 );
+		posVector.setAttribute("x1", (tlm[2]/78)*100 );
+		posVector.setAttribute("y1", ((51-tlm[3])/51)*100 );
+
+		posX.innerHTML = tlm[4];
+		posY.innerHTML = tlm[5];
+		posAngle.innerHTML = tlm[6];
+
+	}
+
+	else if( data.includes("CONFIG") ) {
 
 		console.log( data );
 
@@ -460,6 +492,11 @@ emergency.onclick = function()
 	logging = false;
 };
 
+lights.onclick = function()
+{
+	sendCommand( "LIGHT ");
+}
+
 beginLog.onclick = function(){
 
 	if( logging == false )
@@ -478,6 +515,7 @@ document.addEventListener('keypress', function(event){
 	if( event.code == 'Space'){
 		sendCommand( "STOP")
 		logging = false;
+		
 	}
 });
 

@@ -20,7 +20,8 @@
 			</div>
 			<div>
 				<span><b>Battery: </b> <output style="width: 60px" class="mr-2 text-right" id="voltage" >0.0 V</output></span>
-				<div id="start" class="btn btn-primary">Start</div> 
+				<div id="start" class="btn btn-primary">Start</div>
+				<div id="lights" class="btn btn-secondary">Light</div> 
 				<div id="emergency" class="btn btn-danger">Stop</div>
 			</div>
 		</div>
@@ -37,55 +38,85 @@
 		<!-- Tab content -->
 		<div id="live-data" class="tabcontent">
 
-			<div class="card mb-3">
-				<div class="card-header">
-					Attitude
-				</div>
-				<div class="card-body">
-					<div class="row">
+			<div class="row">
+			
+				<div class="col-sm-9">
 
-						<div class="col-sm-9">
-
-							<canvas id="angleChart" style="width:100%; height:180px"></canvas>
+					<div class="card mb-3">
+						<div class="card-header">
+							Attitude
 						</div>
+						<div class="card-body">
+							<div class="row">
 
-						<div class="col-sm-3">
+								<div class="col-sm-9">
 
-							<div class="input-group mb-3">
-								<div class="input-group-prepend">
-									<span class="input-group-text">Roll</span>
+									<canvas id="angleChart" style="width:100%; height:180px"></canvas>
 								</div>
-								<input class="form-control" style="color:#ec1a1a" id="roll_value" type="number" disabled="true" value="0">
-								<div class="input-group-append">
-									<span class="input-group-text" id="inputGroupFileAddon02">deg</span>
+
+								<div class="col-sm-3">
+
+									<div class="input-group mb-3">
+										<div class="input-group-prepend">
+											<span class="input-group-text">Roll</span>
+										</div>
+										<input class="form-control" style="color:#ec1a1a" id="roll_value" type="number" disabled="true" value="0">
+										
+									</div>
+									
+									<div class="input-group mb-3">
+										<div class="input-group-prepend">
+											<span class="input-group-text">Pitch</span>
+										</div>
+										<input class="form-control" style="color: #01799e" id="pitch_value" type="number" disabled="true" value="0">
+										
+									</div>
+
+									<div class="input-group mb-3">
+										<div class="input-group-prepend">
+											<span class="input-group-text">Yaw</span>
+										</div>
+										<input class="form-control" style="color: #0e9a27" id="yaw_value" type="number" disabled="true" value="0">
+										
+									</div>
+
+									
+									
 								</div>
 							</div>
-							
-							<div class="input-group mb-3">
-								<div class="input-group-prepend">
-									<span class="input-group-text">Pitch</span>
-								</div>
-								<input class="form-control" style="color: #01799e" id="pitch_value" type="number" disabled="true" value="0">
-								<div class="input-group-append">
-									<span class="input-group-text" id="inputGroupFileAddon02">deg</span>
-								</div>
-							</div>
-
-							<div class="input-group mb-3">
-								<div class="input-group-prepend">
-									<span class="input-group-text">Yaw</span>
-								</div>
-								<input class="form-control" style="color: #0e9a27" id="yaw_value" type="number" disabled="true" value="0">
-								<div class="input-group-append">
-									<span class="input-group-text" id="inputGroupFileAddon02">deg</span>
-								</div>
-
-							</div>
-
-							
-							
 						</div>
 					</div>
+
+				</div>
+
+				<div class="col-sm-3">
+					
+					<small>Positions Vector</small>
+					<svg style="padding: 10px; background-color: #fff; width: 100%; border-radius: 5px; border: 1px solid #ddd" viewBox="0 0 100 100">
+
+						<defs>
+						    <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+						      <path d="M0,0 L0,6 L9,3 z" fill="#f00" />
+						    </marker>
+						  </defs>
+
+						<line id="pos_vector" x1="50" y1="20" x2="50" y2="80" marker-end="url(#arrow)" style="stroke:rgb(255,0,0);stroke-width:2" />
+					</svg>
+
+					<div id="posBar">
+						<table class="table table-borderless table-sm-">
+							<tr>
+								<td>&Delta;x: <span id="pos_x">0</span></td>
+								<td>&Delta;y: <span id="pos_y">0</span></td>
+								<td>&Delta;&theta;: <span id="pos_angle">0</span></td>
+							</tr>
+						</table>
+				
+					</div>
+
+				
+
+
 				</div>
 			</div>
 

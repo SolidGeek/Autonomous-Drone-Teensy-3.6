@@ -8,9 +8,8 @@
 #include "DSHOT.h"
 #include "Settings.h"
 #include "Controller.h"
-#include <VL53L1X.h> // Height sensor library
-#include <SPI.h>  
-#include <Pixy2SPI_SS.h> // Positioning camera library
+#include "SparkFun_VL53L1X.h"
+#include <Pixy2I2C.h> // Positioning camera library
 
 #define _DEBUG
 
@@ -24,6 +23,11 @@
 
 #define DEGTORAD 0.017453293
 
+typedef struct {
+  int16_t x;
+  int16_t y;
+} point;
+
 /* Stabilizer class */
 
 class Stabilizer
@@ -35,7 +39,7 @@ public:
 
 	Settings config;
 
-  Pixy2SPI_SS pixy;
+  Pixy2I2C pixy;
 
   bool anglesSettled = false;
 
@@ -56,6 +60,8 @@ public:
   int16_t filtAccel[3] = {0}; // X, Y, Z
 	float height = 0.0;
   float heightRef = 600.0;
+
+  bool lightsOn = false;
 
 	Stabilizer( void );
 
@@ -87,7 +93,7 @@ public:
 
 	float batteryVoltage( void );
 
-  void positionControl( void );
+  void getCamPosition( void );
 
 	// Motor speeds 
 	int16_t s1 = 0;
@@ -106,6 +112,16 @@ public:
   bool rpmTimerStarted = false;
   uint32_t rpmStartupTimer = 0;
 
+
+  // Positioning variables
+  point p1 = {0};
+  point p2 = {0};
+
+  int16_t deltaRoll = 0;
+  int16_t deltaPitch = 0;
+
+  float vectorAngle = 0;
+
   // Inner loop controllers 
   Controller RollRate;
   Controller PitchRate; 
@@ -123,6 +139,9 @@ public:
   Controller Motor3;
   Controller Motor4;
 
+  Controller RollPos;
+  Controller PitchPos;
+
     // Motor objects
   DShot * ESC1;
   DShot * ESC2;
@@ -135,7 +154,7 @@ public:
 private:
 
 	// Altitude sensor object (TOF)
-	VL53L1X TOF;
+	SFEVL53L1X TOF;
 
 	// Attitude sensor object (IMU)
 	MPU6050 IMU;
